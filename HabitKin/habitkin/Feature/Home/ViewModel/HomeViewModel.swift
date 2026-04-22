@@ -7,6 +7,7 @@
 
 import Combine
 import SwiftUI
+import CoreData
 
 class HomeViewModel: ObservableObject {
     @Published var activeKid: Kid?
@@ -55,7 +56,8 @@ class HomeViewModel: ObservableObject {
         
         do {
             let results = try coreDataStack.container.viewContext.fetch(request)
-            todaysHabits = results.compactMap { mapHabitCDToModel($0) }
+//            todaysHabits = results
+//            todaysHabits = results.compactMap { mapHabitCDToModel($0) }
         } catch {
             self.error = "Failed to load habits"
         }

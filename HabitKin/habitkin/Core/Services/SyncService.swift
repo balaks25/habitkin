@@ -6,6 +6,8 @@
 //
 
 import Combine
+import Foundation
+import CoreData
 
 class SyncService: ObservableObject {
     @Published var isSyncing = false

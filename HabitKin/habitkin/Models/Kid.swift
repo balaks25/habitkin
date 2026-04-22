@@ -7,29 +7,21 @@
 
 import Foundation
 
-import Foundation
-
 struct Kid: Identifiable, Codable {
     let id: UUID
     var name: String
-    var avatar: String
-    var age: KidAge
-    var character: KidCharacter
-    var theme: ThemeType
+    var avatar: String // emoji
+    var age: String // under6, 6to8, 9to12
+    var character: String // screen_zombie, lazy, etc
+    var theme: String // space, jungle, superhero
     var createdDate: Date
-    var totalCoins: Int
-    var totalEarned: Int
-    var totalCompleted: Int
-    var streak: Int
-    var lastActivityDate: Date
-    var habitKin: HabitKin?
-    var habits: [Habit]
-    
-    enum CodingKeys: String, CodingKey {
-        case id, name, avatar, age, character, theme
-        case createdDate, totalCoins, totalEarned, totalCompleted
-        case streak, lastActivityDate
-    }
+    var totalCoins: Int = 0
+    var totalEarned: Int = 0
+    var totalCompleted: Int = 0
+    var streak: Int = 0
+    var lastActivityDate: Date = Date()
+    var habits: [Habit] = []
+    var kinStage: String = "egg" // egg, hatch, evolve, ultimate
 }
 
 enum KidAge: String, Codable, CaseIterable {
@@ -63,6 +55,6 @@ enum ThemeType: String, Codable, CaseIterable {
     case jungle = "Jungle"
     case superhero = "Superhero"
     
-    var primaryColor: String { /* ... */ }
-    var accentColor: String { /* ... */ }
+//    var primaryColor: String { /* ... */ }
+//    var accentColor: String { /* ... */ }
 }
