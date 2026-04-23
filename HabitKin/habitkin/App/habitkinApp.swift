@@ -6,14 +6,18 @@
 //
 
 import SwiftUI
-import CoreData
 
 @main
-struct habitkinApp: App {
-
+struct HabitKinApp: App {
+    @State private var selectedKid: Kid?
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if let kid = selectedKid {
+                HomeView(kid: kid)
+            } else {
+                CharacterSelectionView()
+            }
         }
     }
 }
