@@ -4,11 +4,20 @@ struct CharacterSelectionView: View {
     @State private var currentStep = 0 // 0: Name, 1: Age/Avatar, 2: Character, 3: Theme
     @State private var childName = ""
     @State private var selectedAge = 7
-    @State private var selectedAvatar = "🦁"
+    @State private var selectedAvatar = "person.fill"
     @State private var selectedCharacter: Character?
     @State private var selectedTheme: AppTheme?
     
-    let avatars = ["🦁", "🐯", "🐺", "🦊", "🐼", "🐸", "🐉", "🦄"]
+    let avatarOptions = [
+        ("person.fill", "Person"),
+        ("person.crop.circle.fill", "Circle"),
+        ("person.badge.plus.fill", "Plus"),
+        ("person.2.fill", "Group"),
+        ("figure.wave", "Wave"),
+        ("figure.walk", "Walk"),
+        ("figure.sit", "Sit"),
+        ("figure.stand", "Stand")
+    ]
     
     var filteredCharacters: [Character] {
         Character.all.filter { $0.ageRange.contains(selectedAge) }
@@ -43,7 +52,7 @@ struct CharacterSelectionView: View {
                     if currentStep == 0 {
                         Step0_Name(childName: $childName)
                     } else if currentStep == 1 {
-                        Step1_AgeAvatar(selectedAge: $selectedAge, selectedAvatar: $selectedAvatar, avatars: avatars)
+                        Step1_AgeAvatar(selectedAge: $selectedAge, selectedAvatar: $selectedAvatar, avatarOptions: avatarOptions)
                     } else if currentStep == 2 {
                         Step2_Character(filteredCharacters: filteredCharacters, selectedCharacter: $selectedCharacter)
                     } else {
@@ -72,7 +81,7 @@ struct CharacterSelectionView: View {
                             currentStep += 1
                         } else {
                             // All steps complete - navigate to home
-                            print("Complete: \(childName), Age \(selectedAge), \(selectedAvatar), \(selectedCharacter?.name ?? ""), \(selectedTheme?.name ?? "")")
+                            print("✅ Complete: \(childName), Age \(selectedAge), \(selectedAvatar), \(selectedCharacter?.name ?? ""), \(selectedTheme?.name ?? "")")
                         }
                     }) {
                         Text(currentStep == 3 ? "Start Adventure" : "Next")
@@ -148,7 +157,7 @@ struct Step0_Name: View {
 struct Step1_AgeAvatar: View {
     @Binding var selectedAge: Int
     @Binding var selectedAvatar: String
-    let avatars: [String]
+    let avatarOptions: [(String, String)]
     
     var body: some View {
         VStack(spacing: 20) {
@@ -194,17 +203,18 @@ struct Step1_AgeAvatar: View {
                     .padding(.horizontal, 20)
                 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-                    ForEach(avatars, id: \.self) { avatar in
-                        Button(action: { selectedAvatar = avatar }) {
-                            Text(avatar)
-                                .font(.system(size: 40))
+                    ForEach(avatarOptions, id: \.0) { icon, label in
+                        Button(action: { selectedAvatar = icon }) {
+                            Image(systemName: icon)
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundColor(selectedAvatar == icon ? Color(hex: "#6366F1") : Color.white.opacity(0.7))
                                 .frame(height: 70)
                                 .frame(maxWidth: .infinity)
-                                .background(selectedAvatar == avatar ? Color(hex: "#6366F1") : Color.white.opacity(0.08))
+                                .background(selectedAvatar == icon ? Color(hex: "#6366F1").opacity(0.15) : Color.white.opacity(0.05))
                                 .cornerRadius(12)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .stroke(selectedAvatar == avatar ? Color(hex: "#6366F1") : Color.clear, lineWidth: 2)
+                                        .stroke(selectedAvatar == icon ? Color(hex: "#6366F1") : Color.clear, lineWidth: 2)
                                 )
                         }
                     }
@@ -262,8 +272,10 @@ struct CharacterOptionCard: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 16) {
-                Text(character.emoji)
-                    .font(.system(size: 40))
+                Image(systemName: character.icon)
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundColor(Color(hex: character.color))
+                    .frame(width: 50)
                 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(character.name)
@@ -340,8 +352,10 @@ struct ThemeOptionCard: View {
         Button(action: action) {
             VStack(spacing: 12) {
                 HStack(spacing: 16) {
-                    Text(theme.emoji)
-                        .font(.system(size: 40))
+                    Image(systemName: theme.icon)
+                        .font(.system(size: 32, weight: .semibold))
+                        .foregroundColor(Color(hex: theme.primaryColor))
+                        .frame(width: 50)
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text(theme.name)
@@ -362,10 +376,16 @@ struct ThemeOptionCard: View {
                 }
                 
                 // Creatures evolution preview
-                HStack(spacing: 6) {
-                    ForEach([theme.creatures.egg, theme.creatures.hatch, theme.creatures.evolve, theme.creatures.ultimate], id: \.self) { creature in
-                        Text(creature)
-                            .font(.system(size: 20))
+                HStack(spacing: 12) {
+                    ForEach(["egg", "hatch", "evolve", "ultimate"], id: \.self) { stage in
+                        VStack(spacing: 4) {
+                            Image(systemName: theme.creatures[stage])
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(Color(hex: theme.primaryColor))
+                            Text(stage)
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                        }
                     }
                     Spacer()
                 }

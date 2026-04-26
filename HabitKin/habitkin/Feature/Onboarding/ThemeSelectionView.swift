@@ -37,16 +37,17 @@ struct ThemeSelectionView: View {
                         .foregroundColor(.white)
                     Spacer()
                     Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
+                        Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.gray)
+                            .font(.system(size: 24))
                     }
                 }
                 .padding()
                 
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     VStack(spacing: 12) {
                         ForEach(AppTheme.all) { theme in
-                            ThemeCard(
+                            ThemeCardWithSymbols(
                                 theme: theme,
                                 isSelected: selectedTheme?.id == theme.id,
                                 action: { selectedTheme = theme }
@@ -59,7 +60,7 @@ struct ThemeSelectionView: View {
                 if selectedTheme != nil {
                     Button(action: {
                         // Create kid and pass back
-                        let newKid = Kid(
+                        _ = Kid(
                             id: UUID(),
                             name: characterName,
                             avatar: avatar,
@@ -86,7 +87,7 @@ struct ThemeSelectionView: View {
     }
 }
 
-struct ThemeCard: View {
+struct ThemeCardWithSymbols: View {
     let theme: AppTheme
     let isSelected: Bool
     let action: () -> Void
@@ -95,8 +96,10 @@ struct ThemeCard: View {
         Button(action: action) {
             VStack(spacing: 12) {
                 HStack(spacing: 16) {
-                    Text(theme.emoji)
-                        .font(.system(size: 40))
+                    Image(systemName: theme.icon)
+                        .font(.system(size: 32, weight: .semibold))
+                        .foregroundColor(Color(hex: theme.primaryColor))
+                        .frame(width: 50)
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text(theme.name)
@@ -111,18 +114,55 @@ struct ThemeCard: View {
                     
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 24))
                             .foregroundColor(Color(hex: theme.primaryColor))
                     }
                 }
                 
-                HStack(spacing: 8) {
-                    ForEach([theme.creatures.egg, theme.creatures.hatch, theme.creatures.evolve, theme.creatures.ultimate], id: \.self) { creature in
-                        Text(creature)
-                            .font(.system(size: 20))
+                // Creatures evolution preview with SF Symbols
+                HStack(spacing: 12) {
+                    VStack(spacing: 4) {
+                        Image(systemName: theme.creatures.egg)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Color(hex: theme.primaryColor))
+                        Text("Egg")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
                     }
+                    
+                    VStack(spacing: 4) {
+                        Image(systemName: theme.creatures.hatch)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Color(hex: theme.primaryColor))
+                        Text("Hatch")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    VStack(spacing: 4) {
+                        Image(systemName: theme.creatures.evolve)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Color(hex: theme.primaryColor))
+                        Text("Evolve")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    VStack(spacing: 4) {
+                        Image(systemName: theme.creatures.ultimate)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Color(hex: theme.primaryColor))
+                        Text("Ultimate")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Spacer()
                 }
+                .padding(.top, 8)
+                .padding(.bottom, 4)
             }
-            .padding(12)
+            .padding(14)
             .background(Color(hex: theme.secondaryColor).opacity(0.2))
             .cornerRadius(12)
             .overlay(
@@ -137,7 +177,7 @@ struct ThemeCard: View {
     ThemeSelectionView(
         selectedTheme: .constant(nil),
         characterName: "Alex",
-        avatar: "🦁",
+        avatar: "person.fill",
         age: 7,
         characterId: "screen_zombie"
     )

@@ -13,7 +13,7 @@ struct Character: Identifiable, Codable, Hashable {
     let id: String
     let name: String
     let description: String
-    let emoji: String
+    let icon: String // SF Symbol name
     let ageRange: ClosedRange<Int>
     let challenges: [String]
     let storyHook: String
@@ -22,9 +22,9 @@ struct Character: Identifiable, Codable, Hashable {
     static let all: [Character] = [
         Character(
             id: "screen_zombie",
-            name: "📱 Screen Zombie",
+            name: "Screen Zombie",
             description: "Can't put the phone down. Gets stuck in digital world.",
-            emoji: "📱",
+            icon: "phone.fill",
             ageRange: 4...10,
             challenges: ["Screen addiction", "Outdoor phobia", "Social withdrawal"],
             storyHook: "Your HabitKin is trapped inside a screen. Only real-world quests can set them free!",
@@ -32,9 +32,9 @@ struct Character: Identifiable, Codable, Hashable {
         ),
         Character(
             id: "sleepyhead",
-            name: "😴 Sleepyhead",
+            name: "Sleepyhead",
             description: "No motivation. Lazy. Needs a push to get started.",
-            emoji: "😴",
+            icon: "bed.double.fill",
             ageRange: 4...10,
             challenges: ["Lack of motivation", "Procrastination", "Low energy"],
             storyHook: "Your HabitKin is sleeping. Wake them up with your first quest!",
@@ -42,9 +42,9 @@ struct Character: Identifiable, Codable, Hashable {
         ),
         Character(
             id: "volcano",
-            name: "🌋 Volcano",
+            name: "Volcano",
             description: "Short-tempered. Gets angry easily. Needs control.",
-            emoji: "🌋",
+            icon: "flame.fill",
             ageRange: 4...10,
             challenges: ["Anger management", "Emotional control", "Patience"],
             storyHook: "Your HabitKin's power is unstable. Help them channel it!",
@@ -52,9 +52,9 @@ struct Character: Identifiable, Codable, Hashable {
         ),
         Character(
             id: "shadow",
-            name: "🐢 Shadow",
+            name: "Shadow",
             description: "Shy and lacks confidence. Hides from the world.",
-            emoji: "🐢",
+            icon: "person.slash.fill",
             ageRange: 4...10,
             challenges: ["Low confidence", "Social anxiety", "Self-doubt"],
             storyHook: "Your HabitKin is hiding in darkness. Help them shine!",
@@ -62,9 +62,9 @@ struct Character: Identifiable, Codable, Hashable {
         ),
         Character(
             id: "tornado",
-            name: "😈 Tornado",
+            name: "Tornado",
             description: "Hyperactive. Breaks rules. Needs structure.",
-            emoji: "😈",
+            icon: "wind",
             ageRange: 4...10,
             challenges: ["Hyperactivity", "Rule-breaking", "Impulsiveness"],
             storyHook: "Your HabitKin's energy is wild. Give it a mission!",
@@ -72,9 +72,9 @@ struct Character: Identifiable, Codable, Hashable {
         ),
         Character(
             id: "dreamer",
-            name: "🌀 Dreamer",
+            name: "Dreamer",
             description: "Unfocused. Gets distracted easily.",
-            emoji: "🌀",
+            icon: "cloud.fill",
             ageRange: 4...10,
             challenges: ["Lack of focus", "Distractibility", "No follow-through"],
             storyHook: "Your HabitKin has big dreams. Make them real with action!",

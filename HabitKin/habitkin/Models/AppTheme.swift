@@ -12,7 +12,7 @@ struct AppTheme: Identifiable, Codable, Hashable {
     let id: String
     let name: String
     let world: String
-    let emoji: String
+    let icon: String // SF Symbol name
     let primaryColor: String
     let secondaryColor: String
     let accentColor: String
@@ -21,47 +21,47 @@ struct AppTheme: Identifiable, Codable, Hashable {
     static let all: [AppTheme] = [
         AppTheme(
             id: "space",
-            name: "🚀 Space Explorer",
+            name: "Space Explorer",
             world: "Cosmic Galaxy",
-            emoji: "🚀",
+            icon: "star.fill",
             primaryColor: "#6C3FF5",
             secondaryColor: "#0A0A2E",
             accentColor: "#B794F4",
             creatures: ThemeCreatures(
-                egg: "🥚",
-                hatch: "👾",
-                evolve: "🛸",
-                ultimate: "⭐"
+                egg: "circle.fill",
+                hatch: "star.fill",
+                evolve: "sparkles",
+                ultimate: "star.circle.fill"
             )
         ),
         AppTheme(
             id: "jungle",
-            name: "🌿 Jungle Explorer",
+            name: "Jungle Explorer",
             world: "Wild Jungle",
-            emoji: "🌿",
+            icon: "leaf.fill",
             primaryColor: "#38A169",
             secondaryColor: "#071A0E",
             accentColor: "#68D391",
             creatures: ThemeCreatures(
-                egg: "🥚",
-                hatch: "🐣",
-                evolve: "🐲",
-                ultimate: "🦋"
+                egg: "circle.fill",
+                hatch: "leaf.fill",
+                evolve: "tree.fill",
+                ultimate: "leaf.arrow.triangle.circlepath"
             )
         ),
         AppTheme(
             id: "superhero",
-            name: "🦸 Superhero Academy",
+            name: "Superhero Academy",
             world: "Hero City",
-            emoji: "🦸",
+            icon: "bolt.fill",
             primaryColor: "#E53E3E",
             secondaryColor: "#1A0505",
             accentColor: "#FC8181",
             creatures: ThemeCreatures(
-                egg: "🥚",
-                hatch: "🐥",
-                evolve: "⚡",
-                ultimate: "🦸"
+                egg: "circle.fill",
+                hatch: "bolt.fill",
+                evolve: "bolt.circle.fill",
+                ultimate: "star.circle.fill"
             )
         )
     ]

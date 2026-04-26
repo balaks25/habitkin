@@ -5,293 +5,257 @@
 //  Created by Balaji K S on 23/04/26.
 //
 
-
 import SwiftUI
 
 struct HomeView: View {
-    @StateObject private var viewModel: HomeViewModel
-    @State private var showQuestDetail: Quest?
+    let kid: Kid
+    @State private var showCelebration = false
+    @State private var celebrationMessage = ""
     
-    init(kid: Kid) {
-        _viewModel = StateObject(wrappedValue: HomeViewModel(kid: kid))
+    var theme: AppTheme {
+        kid.theme
+    }
+    
+    var availableQuests: [Quest] {
+        let allQuests = kid.getCurrentWeekQuests()
+        let dailyQuests = allQuests.filter { $0.category == "daily" }
+        let specialQuests = allQuests.filter { $0.category == "special" }
+        
+        return dailyQuests + specialQuests
     }
     
     var body: some View {
         ZStack {
             LinearGradient(
                 gradient: Gradient(colors: [
-                    Color(hex: viewModel.kid.theme.secondaryColor),
-                    Color(hex: viewModel.kid.theme.secondaryColor).opacity(0.5)
+                    Color(hex: theme.secondaryColor),
+                    Color(hex: theme.secondaryColor).opacity(0.5)
                 ]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
             
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 20) {
-                    // Header
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(viewModel.kid.name)
+                    // Header with Kid Switcher
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(kid.name)
                                 .font(.title2)
                                 .fontWeight(.bold)
                                 .foregroundColor(.white)
-                            Text("Week \(viewModel.kid.currentWeek)/4")
+                            Text("Week \(kid.currentWeek)/4")
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
+                        
                         Spacer()
-                        Text(viewModel.kid.avatar)
-                            .font(.system(size: 40))
+                        
+                        // Add new kid button
+                        Button(action: {}) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundColor(Color(hex: theme.primaryColor))
+                        }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 20)
+                    .padding(.top, 16)
                     
-                    // HabitKin Card
-                    KinCard(kid: viewModel.kid, theme: viewModel.kid.theme)
+                    // Kid selector (horizontal scroll for multiple kids)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            VStack(spacing: 4) {
+                                Image(systemName: kid.avatar)
+                                    .font(.system(size: 24, weight: .semibold))
+                                    .foregroundColor(Color(hex: theme.primaryColor))
+                                    .frame(width: 50, height: 50)
+                                    .background(Color(hex: theme.primaryColor).opacity(0.2))
+                                    .cornerRadius(12)
+                                
+                                Text(kid.name)
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                            }
+                        }
                         .padding(.horizontal, 20)
+                    }
+                    .frame(height: 80)
+                    
+                    // Creature Card
+                    VStack(spacing: 16) {
+                        Image(systemName: theme.creatures[kid.kinStage])
+                            .font(.system(size: 80, weight: .semibold))
+                            .foregroundColor(Color(hex: theme.primaryColor))
+                            .frame(height: 100)
+                        
+                        VStack(spacing: 4) {
+                            Text("\(kid.name)'s \(theme.world)")
+                                .font(.headline)
+                                .foregroundColor(Color(hex: theme.primaryColor))
+                            
+                            Text("Stage: \(kid.kinStage.uppercased())")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        // Stats Grid
+                        HStack(spacing: 12) {
+                            StatBox(label: "Coins", value: "\(kid.totalCoins)", icon: "star.fill", theme: theme)
+                            StatBox(label: "Streak", value: "\(kid.streak)", icon: "flame.fill", theme: theme)
+                            StatBox(label: "Done", value: "\(kid.totalCompleted)", icon: "checkmark.circle.fill", theme: theme)
+                        }
+                        
+                        // Progress Bar
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Progress to next stage")
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                            
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.white.opacity(0.1))
+                                
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(hex: theme.primaryColor))
+                                    .frame(width: CGFloat(max(kid.totalEarned % 500, 1)) / 500 * (UIScreen.main.bounds.width - 40))
+                            }
+                            .frame(height: 8)
+                            
+                            HStack {
+                                Text("\(kid.totalEarned % 500)/500")
+                                    .font(.caption2)
+                                    .foregroundColor(.gray)
+                                Spacer()
+                            }
+                        }
+                    }
+                    .padding(20)
+                    .background(Color(hex: theme.primaryColor).opacity(0.1))
+                    .cornerRadius(16)
+                    .padding(.horizontal, 20)
                     
                     // Story Hook
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(viewModel.kid.character.storyHook)
+                        Text(kid.character.storyHook)
                             .font(.headline)
-                            .foregroundColor(Color(hex: viewModel.kid.theme.accentColor))
+                            .foregroundColor(Color(hex: theme.accentColor))
                         
-                        Text("Week \(viewModel.kid.currentWeek) Journey")
+                        Text("Week \(kid.currentWeek) - \(getWeekTitle(kid.currentWeek))")
                             .font(.caption)
                             .foregroundColor(.gray)
                     }
                     .padding(12)
-                    .background(Color(hex: viewModel.kid.theme.primaryColor).opacity(0.1))
+                    .background(Color(hex: theme.primaryColor).opacity(0.15))
                     .cornerRadius(12)
                     .padding(.horizontal, 20)
                     
-                    // Quests Section
+                    // Daily Quests
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Today's Quests")
-                            .font(.headline)
-                            .foregroundColor(Color(hex: viewModel.kid.theme.primaryColor))
-                        
-                        if viewModel.availableQuests.isEmpty {
-                            VStack(spacing: 12) {
-                                Text("🎉")
-                                    .font(.system(size: 40))
-                                Text("All quests completed today!")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(20)
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(12)
-                        } else {
-                            VStack(spacing: 10) {
-                                ForEach(viewModel.availableQuests) { quest in
-                                    QuestRow(
-                                        quest: quest,
-                                        theme: viewModel.kid.theme,
-                                        action: {
-                                            viewModel.completeQuest(quest)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    
-                    // Completed Today
-                    if !viewModel.completedToday.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("✅ Completed Today (\(viewModel.completedToday.count))")
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundColor(Color(hex: theme.primaryColor))
+                            Text("Daily Quests")
                                 .font(.headline)
-                                .foregroundColor(.green)
-                            
-                            VStack(spacing: 8) {
-                                ForEach(viewModel.completedToday) { quest in
-                                    HStack {
-                                        Text(quest.icon)
-                                        Text(quest.name)
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                        Spacer()
-                                        Text("+\(quest.coins)")
-                                            .font(.caption)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.green)
-                                    }
-                                    .padding(8)
-                                    .background(Color.green.opacity(0.1))
-                                    .cornerRadius(8)
-                                }
-                            }
+                                .foregroundColor(Color(hex: theme.primaryColor))
                         }
                         .padding(.horizontal, 20)
+                        
+                        VStack(spacing: 10) {
+                            let dailyQuests = availableQuests.filter { $0.category == "daily" }
+                            
+                            if dailyQuests.isEmpty {
+                                VStack(spacing: 12) {
+                                    Image(systemName: "star.circle.fill")
+                                        .font(.system(size: 40))
+                                        .foregroundColor(Color(hex: theme.primaryColor))
+                                    Text("All daily quests completed!")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(20)
+                                .background(Color.white.opacity(0.05))
+                                .cornerRadius(12)
+                                .padding(.horizontal, 20)
+                            } else {
+                                ForEach(dailyQuests) { quest in
+                                    QuestCard(quest: quest, theme: theme) {
+                                        completeQuest(quest)
+                                    }
+                                    .padding(.horizontal, 20)
+                                }
+                            }
+                        }
                     }
+                    
+                    // Special Missions
+                    let specialQuests = availableQuests.filter { $0.category == "special" }
+                    
+                    if !specialQuests.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "sparkles")
+                                    .foregroundColor(Color(hex: theme.primaryColor))
+                                Text("Special Missions")
+                                    .font(.headline)
+                                    .foregroundColor(Color(hex: theme.primaryColor))
+                            }
+                            .padding(.horizontal, 20)
+                            
+                            VStack(spacing: 10) {
+                                ForEach(specialQuests) { quest in
+                                    QuestCard(quest: quest, theme: theme) {
+                                        completeQuest(quest)
+                                    }
+                                    .padding(.horizontal, 20)
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(minLength: 80)
                 }
-                .padding(.bottom, 20)
+                .padding(.vertical, 20)
             }
             
             // Celebration Animation
-            if viewModel.showCelebration {
-                CelebrationView(message: viewModel.celebrationMessage)
+            if showCelebration {
+                CelebrationView(message: celebrationMessage, theme: theme)
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .onAppear {
-            viewModel.loadQuests()
+    }
+    
+    private func completeQuest(_ quest: Quest) {
+        celebrationMessage = "+\(quest.coins)\n\(quest.name)"
+        showCelebration = true
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            showCelebration = false
+        }
+    }
+    
+    private func getWeekTitle(_ week: Int) -> String {
+        switch week {
+        case 1: return "Meeting Your HabitKin"
+        case 2: return "Building Our Bond"
+        case 3: return "Getting Legendary"
+        case 4: return "Forever Friends"
+        default: return "Hero's Journey"
         }
     }
 }
 
-struct KinCard: View {
-    let kid: Kid
-    let theme: AppTheme
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            // Creature
-            VStack {
-                Text(theme.creatures[kid.kinStage])
-                    .font(.system(size: 100))
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .baselineOffset(10)
-            }
-            .frame(height: 120)
-            .frame(maxWidth: .infinity)
-            
-            // Info
-            VStack(spacing: 4) {
-                Text("\(kid.name)'s \(theme.world)")
-                    .font(.headline)
-                    .foregroundColor(Color(hex: theme.primaryColor))
-                
-                Text("Level \(kid.totalCompleted / 5 + 1) - \(kid.kinStage.uppercased())")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-            
-            // Stats Grid
-            HStack(spacing: 16) {
-                StatBox(label: "Coins", value: "\(kid.totalCoins)", icon: "🪙", theme: theme)
-                StatBox(label: "Streak", value: "\(kid.streak)", icon: "🔥", theme: theme)
-                StatBox(label: "Done", value: "\(kid.totalCompleted)", icon: "✅", theme: theme)
-            }
-            
-            // XP Bar
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Progress to next stage")
-                    .font(.caption2)
-                    .foregroundColor(.gray)
-                
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.white.opacity(0.1))
-                    
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(hex: theme.primaryColor))
-                        .frame(width: CGFloat(kid.totalEarned % 500) / 5)
-                }
-                .frame(height: 8)
-                
-                HStack {
-                    Text("\(kid.totalEarned % 500)/500")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
-                    Spacer()
-                }
-            }
-        }
-        .padding(20)
-        .background(Color(hex: theme.primaryColor).opacity(0.1))
-        .cornerRadius(16)
-    }
-}
-
-struct QuestRow: View {
-    let quest: Quest
-    let theme: AppTheme
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Text(quest.icon)
-                    .font(.system(size: 28))
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(quest.name)
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    Text(quest.description)
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("+\(quest.coins)")
-                        .font(.headline)
-                        .foregroundColor(Color(hex: theme.primaryColor))
-                    Text("🪙")
-                }
-            }
-            .padding(12)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(hex: theme.primaryColor).opacity(0.2), lineWidth: 1)
-            )
-        }
-    }
-}
-
-struct StatBox: View {
-    let label: String
-    let value: String
-    let icon: String
-    let theme: AppTheme
-    
-    var body: some View {
-        VStack(spacing: 6) {
-            Text(icon)
-                .font(.system(size: 20))
-            Text(value)
-                .font(.headline)
-                .foregroundColor(Color(hex: theme.primaryColor))
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.gray)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(12)
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(10)
-    }
-}
-
-struct CelebrationView: View {
-    let message: String
-    
-    var body: some View {
-        VStack {
-            VStack(spacing: 12) {
-                Text("🎉")
-                    .font(.system(size: 60))
-                Text(message)
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(30)
-            .background(Color.black.opacity(0.7))
-            .cornerRadius(16)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.4))
-    }
+#Preview {
+    HomeView(kid: Kid(
+        id: UUID(),
+        name: "Alex",
+        avatar: "person.fill",
+        age: 7,
+        characterId: "screen_zombie",
+        themeId: "space",
+        createdDate: Date()
+    ))
 }
