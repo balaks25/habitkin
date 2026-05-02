@@ -22,7 +22,7 @@ struct Quest: Identifiable, Codable, Hashable {
     static let questLibrary: [Quest] = [
         // WEEK 1 - All Characters
         Quest(id: "q_make_bed", name: "Prepare the Base Camp", description: "Make your bed clean and tidy", icon: "bed.double.fill", coins: 10, category: "daily", week: 1, characterIds: ["screen_zombie", "sleepyhead", "volcano", "shadow", "tornado", "dreamer"], ageRange: 4...10),
-        Quest(id: "q_brush_teeth", name: "Brush Your Teeth", description: "Morning and evening ritual", icon: "smile.fill", coins: 5, category: "daily", week: 1, characterIds: ["screen_zombie", "sleepyhead", "volcano", "shadow", "tornado", "dreamer"], ageRange: 4...10),
+        Quest(id: "q_brush_teeth", name: "Brush Your Teeth", description: "Morning and evening ritual", icon: "tree.fill", coins: 5, category: "daily", week: 1, characterIds: ["screen_zombie", "sleepyhead", "volcano", "shadow", "tornado", "dreamer"], ageRange: 4...10),
         
         // Screen Zombie - Week 1
         Quest(id: "q_screen_free_30", name: "Free Your HabitKin", description: "Put your phone down for 30 minutes", icon: "phone.slash", coins: 30, category: "daily", week: 1, characterIds: ["screen_zombie"], ageRange: 4...10),
