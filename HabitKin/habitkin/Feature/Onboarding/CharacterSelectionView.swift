@@ -26,15 +26,7 @@ struct CharacterSelectionView: View {
     var body: some View {
         ZStack {
             // Background gradient
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(hex: "#0F172A"),
-                    Color(hex: "#1E293B")
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            AuthBackground()
             
             VStack(spacing: 0) {
                 // Progress bar

@@ -18,7 +18,7 @@ struct MainTabView: View {
                 HomeView(kid: kid)
                     .tag(0)
                 
-                ProgressView(kid: kid)
+                ProgressTabView(kid: kid)
                     .tag(1)
                 
                 RewardsView(kid: kid)

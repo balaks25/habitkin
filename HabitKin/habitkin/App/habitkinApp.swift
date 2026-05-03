@@ -11,19 +11,26 @@ import SwiftUI
 struct HabitKinApp: App {
     @State private var selectedKid: Kid?
     @State private var isOnboarded = false
-    
+    @State private var isSignedIn = false
+
     var body: some Scene {
         WindowGroup {
-            if isOnboarded, let kid = selectedKid {
-                MainTabView(kid: kid)
-                    .preferredColorScheme(.dark)
-            } else {
-                CharacterSelectionViewContainer { kid in
-                    selectedKid = kid
-                    isOnboarded = true
+            Group {
+                if !isSignedIn {
+                    // Step 1: Auth
+                    AuthView { isSignedIn = true }
+                } else if isOnboarded, let kid = selectedKid {
+                    // Step 3: Main App
+                    MainTabView(kid: kid)
+                } else {
+                    // Step 2: Onboarding
+                    CharacterSelectionViewContainer { kid in
+                        selectedKid = kid
+                        isOnboarded = true
+                    }
                 }
-                .preferredColorScheme(.dark)
             }
+            .preferredColorScheme(.dark)
         }
     }
     
@@ -34,6 +41,13 @@ struct HabitKinApp: App {
         UINavigationBar.appearance().standardAppearance = appearance
         UINavigationBar.appearance().compactAppearance = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        
+//        // Set status bar style to light content (white text)
+//        UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.forEach { windowScene in
+//            windowScene.windows.forEach { window in
+//                window.windowScene?.requestGeometryUpdate(.iOS(statusBarFrame: .zero))
+//            }
+//        }
     }
 }
 
@@ -63,15 +77,7 @@ struct CharacterSelectionViewContainer: View {
     
     var body: some View {
         ZStack {
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(hex: "#0F172A"),
-                    Color(hex: "#1E293B")
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            AuthBackground()
             
             VStack(spacing: 0) {
                 // Progress bar

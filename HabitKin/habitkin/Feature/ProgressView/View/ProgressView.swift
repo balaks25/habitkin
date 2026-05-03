@@ -8,7 +8,7 @@
 
 import SwiftUI
 
-struct ProgressView: View {
+struct ProgressTabView: View {
     let kid: Kid
     
     var theme: AppTheme {
@@ -425,7 +425,7 @@ struct StatsSummaryBox: View {
 }
 
 #Preview {
-    ProgressView(kid: Kid(
+    ProgressTabView(kid: Kid(
         id: UUID(),
         name: "Alex",
         avatar: "person.fill",

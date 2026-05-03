@@ -18,17 +18,7 @@ struct ThemeSelectionView: View {
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
-        ZStack {
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(hex: "#0F172A"),
-                    Color(hex: "#1E293B")
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
+        ZStack {            
             VStack(spacing: 20) {
                 HStack {
                     Text("Choose Your World")
