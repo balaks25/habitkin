@@ -221,16 +221,6 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal, 20)
                     
-                    // ── STATS ─────────────────────────────────────
-                    SectionHeader(icon: "chart.bar.fill", title: "Stats", theme: theme)
-                    
-                    VStack(spacing: 10) {
-                        SettingRow(icon: "calendar", label: "Member Since", value: formatDate(kid.createdDate), theme: theme, action: {})
-                        SettingRow(icon: "star.fill", label: "Total Coins Earned", value: "\(kid.totalEarned)", theme: theme, action: {})
-                        SettingRow(icon: "checkmark.circle.fill", label: "Quests Completed", value: "\(kid.totalCompleted)", theme: theme, action: {})
-                    }
-                    .padding(.horizontal, 20)
-                    
                     // ── APP ───────────────────────────────────────
                     SectionHeader(icon: "info.circle.fill", title: "App", theme: theme)
                     

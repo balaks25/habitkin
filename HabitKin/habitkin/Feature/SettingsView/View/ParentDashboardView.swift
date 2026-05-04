@@ -14,10 +14,9 @@ struct ParentDashboardView: View {
     @State private var selectedSection = 0
     @State private var showAddQuest = false
     @State private var showAddReward = false
-    @State private var showAdjustPoints = false
     @StateObject private var session = ParentSession.shared
     
-    let sections = ["Quests", "Rewards", "Points"]
+    let sections = ["Quests", "Rewards"]
     
     var body: some View {
         ZStack {
@@ -101,8 +100,6 @@ struct ParentDashboardView: View {
                             ManageQuestsSection(kid: kid, theme: theme, showAdd: $showAddQuest)
                         case 1:
                             ManageRewardsSection(kid: kid, theme: theme, showAdd: $showAddReward)
-                        case 2:
-                            ManagePointsSection(kid: kid, theme: theme, showAdjust: $showAdjustPoints)
                         default:
                             EmptyView()
                         }
@@ -118,9 +115,6 @@ struct ParentDashboardView: View {
         }
         .sheet(isPresented: $showAddReward) {
             AddRewardSheet(kid: kid, theme: theme, isPresented: $showAddReward)
-        }
-        .sheet(isPresented: $showAdjustPoints) {
-            AdjustPointsSheet(kid: kid, theme: theme, isPresented: $showAdjustPoints)
         }
     }
 }
@@ -305,123 +299,6 @@ struct ManageRewardRow: View {
     }
 }
 
-// MARK: - Manage Points Section
-struct ManagePointsSection: View {
-    let kid: Kid
-    let theme: AppTheme
-    @Binding var showAdjust: Bool
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            // Current Stats Card
-            VStack(spacing: 16) {
-                HStack {
-                    Text("Current Balance")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    Spacer()
-                }
-                
-                HStack(spacing: 20) {
-                    PointsStatBox(label: "Available", value: "\(kid.totalCoins)", icon: "star.fill", theme: theme)
-                    PointsStatBox(label: "Total Earned", value: "\(kid.totalEarned)", icon: "trophy.fill", theme: theme)
-                    PointsStatBox(label: "Quests Done", value: "\(kid.totalCompleted)", icon: "checkmark.circle.fill", theme: theme)
-                }
-            }
-            .padding(16)
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(12)
-            .padding(.horizontal, 20)
-            
-            // Adjust Points Button
-            Button(action: { showAdjust = true }) {
-                HStack(spacing: 10) {
-                    Image(systemName: "plusminus.circle.fill")
-                        .font(.system(size: 20, weight: .semibold))
-                    Text("Adjust Points Manually")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                }
-                .foregroundColor(Color(hex: theme.primaryColor))
-                .frame(maxWidth: .infinity)
-                .padding(14)
-                .background(Color(hex: theme.primaryColor).opacity(0.12))
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color(hex: theme.primaryColor).opacity(0.3), lineWidth: 1)
-                )
-            }
-            .padding(.horizontal, 20)
-            
-            // Quest Coin Values
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Quest Coin Values")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-                    .padding(.horizontal, 20)
-                
-                ForEach(Quest.questLibrary.filter { $0.characterIds.contains(kid.characterId) }) { quest in
-                    HStack(spacing: 12) {
-                        Image(systemName: quest.icon)
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(Color(hex: theme.primaryColor))
-                            .frame(width: 40, height: 40)
-                            .background(Color(hex: theme.primaryColor).opacity(0.1))
-                            .cornerRadius(8)
-                        
-                        Text(quest.name)
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                        
-                        Spacer()
-                        
-                        HStack(spacing: 4) {
-                            Image(systemName: "star.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(Color(hex: theme.primaryColor))
-                            Text("\(quest.coins)")
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundColor(Color(hex: theme.primaryColor))
-                        }
-                    }
-                    .padding(12)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(12)
-                    .padding(.horizontal, 20)
-                }
-            }
-        }
-    }
-}
-
-struct PointsStatBox: View {
-    let label: String
-    let value: String
-    let icon: String
-    let theme: AppTheme
-    
-    var body: some View {
-        VStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(Color(hex: theme.primaryColor))
-            Text(value)
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.gray)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(10)
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(10)
-    }
-}
-
 // MARK: - Add Quest Sheet
 struct AddQuestSheet: View {
     let kid: Kid
@@ -553,144 +430,6 @@ struct AddQuestSheet: View {
                         .cornerRadius(12)
                 }
                 .disabled(questName.isEmpty)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
-            }
-        }
-    }
-}
-
-// MARK: - Adjust Points Sheet
-struct AdjustPointsSheet: View {
-    let kid: Kid
-    let theme: AppTheme
-    @Binding var isPresented: Bool
-    
-    @State private var adjustAmount = 10
-    @State private var adjustType = "add"
-    @State private var reason = ""
-    @Environment(\.dismiss) var dismiss
-    
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(hex: theme.secondaryColor),
-                    Color(hex: theme.secondaryColor).opacity(0.5)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                HStack {
-                    Text("Adjust Points")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                    Spacer()
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 24))
-                    }
-                }
-                .padding()
-                
-                // Current balance
-                HStack {
-                    Text("Current Balance:")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                    Spacer()
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(Color(hex: theme.primaryColor))
-                        Text("\(kid.totalCoins)")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                    }
-                }
-                .padding(.horizontal, 20)
-                
-                // Add or Remove toggle
-                HStack(spacing: 0) {
-                    Button(action: { adjustType = "add" }) {
-                        Text("Add Points")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(adjustType == "add" ? Color(hex: theme.primaryColor) : Color.white.opacity(0.5))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(adjustType == "add" ? Color(hex: theme.primaryColor).opacity(0.15) : Color.clear)
-                            .cornerRadius(8)
-                    }
-                    
-                    Button(action: { adjustType = "remove" }) {
-                        Text("Remove Points")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(adjustType == "remove" ? Color(hex: "#EF4444") : Color.white.opacity(0.5))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(adjustType == "remove" ? Color(hex: "#EF4444").opacity(0.15) : Color.clear)
-                            .cornerRadius(8)
-                    }
-                }
-                .background(Color.white.opacity(0.05))
-                .cornerRadius(10)
-                .padding(.horizontal, 20)
-                
-                // Amount Stepper
-                HStack {
-                    Button(action: { if adjustAmount > 5 { adjustAmount -= 5 } }) {
-                        Image(systemName: "minus.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(adjustType == "add" ? Color(hex: theme.primaryColor) : Color(hex: "#EF4444"))
-                    }
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 6) {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(adjustType == "add" ? Color(hex: theme.primaryColor) : Color(hex: "#EF4444"))
-                        Text("\(adjustAmount)")
-                            .font(.system(size: 44, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: { adjustAmount += 5 }) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(adjustType == "add" ? Color(hex: theme.primaryColor) : Color(hex: "#EF4444"))
-                    }
-                }
-                .padding(.horizontal, 20)
-                
-                // Reason
-                FormField(label: "Reason (optional)", placeholder: "e.g. Bonus for extra help") { _ in
-                    TextField("Add a reason", text: $reason)
-                        .foregroundColor(.white)
-                }
-                
-                Spacer()
-                
-                Button(action: { dismiss() }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: adjustType == "add" ? "plus.circle.fill" : "minus.circle.fill")
-                        Text("\(adjustType == "add" ? "Add" : "Remove") \(adjustAmount) Points")
-                            .fontWeight(.bold)
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(14)
-                    .background(adjustType == "add" ? Color(hex: theme.primaryColor) : Color(hex: "#EF4444"))
-                    .cornerRadius(12)
-                }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
             }
