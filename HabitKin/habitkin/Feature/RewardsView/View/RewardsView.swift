@@ -47,50 +47,6 @@ struct RewardsView: View {
             
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 20) {
-                    // Header with Kid Switcher
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Rewards")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                            Text("Spend your coins")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: {}) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 28, weight: .semibold))
-                                .foregroundColor(Color(hex: theme.primaryColor))
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    
-                    // Kid selector
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            VStack(spacing: 4) {
-                                Image(systemName: kid.avatar)
-                                    .font(.system(size: 24, weight: .semibold))
-                                    .foregroundColor(Color(hex: theme.primaryColor))
-                                    .frame(width: 50, height: 50)
-                                    .background(Color(hex: theme.primaryColor).opacity(0.2))
-                                    .cornerRadius(12)
-                                
-                                Text(kid.name)
-                                    .font(.caption)
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                    }
-                    .frame(height: 80)
-                    
                     // Coins Display
                     VStack(spacing: 12) {
                         HStack {
@@ -343,16 +299,4 @@ struct RewardCard: View {
                 .stroke(canAfford && !isClaimed ? Color(hex: theme.primaryColor).opacity(0.3) : Color.clear, lineWidth: 1)
         )
     }
-}
-
-#Preview {
-    RewardsView(kid: Kid(
-        id: UUID(),
-        name: "Alex",
-        avatar: "person.fill",
-        age: 7,
-        characterId: "screen_zombie",
-        themeId: "space",
-        createdDate: Date()
-    ))
 }

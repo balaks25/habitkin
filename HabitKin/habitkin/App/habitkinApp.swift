@@ -9,9 +9,8 @@ import SwiftUI
 
 @main
 struct HabitKinApp: App {
-    @State private var selectedKid: Kid?
-    @State private var isOnboarded = false
-    @State private var isSignedIn = false
+    @AppStorage("isSignedIn") private var isSignedIn = false
+    @StateObject private var manager = KidsManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -19,35 +18,28 @@ struct HabitKinApp: App {
                 if !isSignedIn {
                     // Step 1: Auth
                     AuthView { isSignedIn = true }
-                } else if isOnboarded, let kid = selectedKid {
-                    // Step 3: Main App
-                    MainTabView(kid: kid)
-                } else {
-                    // Step 2: Onboarding
+                }
+                else if manager.hasKids {
+                    // Step 3: Main app — kids already saved from previous session
+                    MainTabView()
+                }
+                else {
+                    // Step 2: Onboarding — no kids yet
                     CharacterSelectionViewContainer { kid in
-                        selectedKid = kid
-                        isOnboarded = true
+                        manager.addKid(kid) // persists immediately via UserDefaults
                     }
                 }
             }
             .preferredColorScheme(.dark)
         }
     }
-    
+
     init() {
-        // Configure UI appearance for dark theme
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
-        UINavigationBar.appearance().standardAppearance = appearance
-        UINavigationBar.appearance().compactAppearance = appearance
+        UINavigationBar.appearance().standardAppearance   = appearance
+        UINavigationBar.appearance().compactAppearance    = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
-        
-//        // Set status bar style to light content (white text)
-//        UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.forEach { windowScene in
-//            windowScene.windows.forEach { window in
-//                window.windowScene?.requestGeometryUpdate(.iOS(statusBarFrame: .zero))
-//            }
-//        }
     }
 }
 

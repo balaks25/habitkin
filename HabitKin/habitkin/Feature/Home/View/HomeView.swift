@@ -62,27 +62,6 @@ struct HomeView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
                     
-                    // Kid selector (horizontal scroll for multiple kids)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            VStack(spacing: 4) {
-                                Image(systemName: kid.avatar)
-                                    .font(.system(size: 24, weight: .semibold))
-                                    .foregroundColor(Color(hex: theme.primaryColor))
-                                    .frame(width: 50, height: 50)
-                                    .background(Color(hex: theme.primaryColor).opacity(0.2))
-                                    .cornerRadius(12)
-                                
-                                Text(kid.name)
-                                    .font(.caption)
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                    }
-                    .frame(height: 80)
-                    
                     // Creature Card
                     VStack(spacing: 16) {
                         Image(systemName: theme.creatures[kid.kinStage])

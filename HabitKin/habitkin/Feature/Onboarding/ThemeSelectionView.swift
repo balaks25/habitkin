@@ -162,13 +162,3 @@ struct ThemeCardWithSymbols: View {
         }
     }
 }
-
-#Preview {
-    ThemeSelectionView(
-        selectedTheme: .constant(nil),
-        characterName: "Alex",
-        avatar: "person.fill",
-        age: 7,
-        characterId: "screen_zombie"
-    )
-}

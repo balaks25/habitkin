@@ -394,7 +394,3 @@ struct ThemeOptionCard: View {
         }
     }
 }
-
-#Preview {
-    CharacterSelectionView()
-}

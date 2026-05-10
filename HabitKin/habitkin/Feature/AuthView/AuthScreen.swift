@@ -531,7 +531,3 @@ struct AuthErrorBanner: View {
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(hex: "#EF4444").opacity(0.2), lineWidth: 1))
     }
 }
-
-#Preview("Landing") { AuthView(onSignedIn: {}) }
-#Preview("Sign In") { SignInView(onBack: {}, onSignedIn: {}, onGoToSignUp: {}) }
-#Preview("Sign Up") { SignUpView(onBack: {}, onSignedUp: {}, onGoToSignIn: {}) }
