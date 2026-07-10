@@ -16,16 +16,11 @@ struct AddKidSheet: View {
     @State private var currentStep = 0
     @State private var childName = ""
     @State private var selectedAge = 7
-    @State private var selectedAvatar = "person.fill"
+    @State private var selectedAvatar = "boy_1"
     @State private var selectedCharacter: Character?
     @State private var selectedTheme: AppTheme?
 
-    private let avatarOptions: [(String, String)] = [
-        ("person.fill", "Person"), ("person.crop.circle.fill", "Circle"),
-        ("star.fill", "Star"),     ("heart.fill", "Heart"),
-        ("moon.fill", "Moon"),     ("sun.max.fill", "Sun"),
-        ("bolt.fill", "Bolt"),     ("leaf.fill", "Leaf")
-    ]
+    private let avatarOptions: [(String, String)] = [] // unused — AvatarCarouselPicker handles this
 
     private var accentColor: String {
         selectedTheme?.primaryColor ?? "#6C3FF5"
@@ -270,13 +265,14 @@ struct NameStepContent: View {
 struct AgeAvatarStepContent: View {
     @Binding var age: Int
     @Binding var avatar: String
+    // avatarOptions kept for API compat but ignored — we use asset avatars
     let avatarOptions: [(String, String)]
     let accentColor: String
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             agePicker
-            avatarPicker
+            avatarCarousel
         }
     }
 
@@ -293,13 +289,11 @@ struct AgeAvatarStepContent: View {
                         .font(.system(size: 30))
                         .foregroundColor(Color(hex: accentColor))
                 }
-
                 Text("\(age)")
                     .font(.system(size: 48, weight: .bold))
                     .foregroundColor(.white)
                     .monospacedDigit()
                     .frame(width: 80)
-
                 Button(action: { if age < 16 { age += 1 } }) {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 30))
@@ -312,22 +306,137 @@ struct AgeAvatarStepContent: View {
         .cornerRadius(12)
     }
 
-    private var avatarPicker: some View {
-        VStack(spacing: 12) {
-            Text("Avatar")
+    private var avatarCarousel: some View {
+        AvatarCarouselPicker(selectedAvatar: $avatar, accentColor: accentColor)
+    }
+}
+
+// MARK: - Avatar Carousel Picker
+// Left/right swipe carousel showing one large avatar at a time with arrows.
+struct AvatarCarouselPicker: View {
+    @Binding var selectedAvatar: String
+    let accentColor: String
+
+    // All 8 assets — boys then girls
+    static let avatars = [
+        "boy_1", "boy_2", "boy_3", "boy_4",
+        "girl_1", "girl_2", "girl_3", "girl_4"
+    ]
+
+    private var currentIndex: Int {
+        Self.avatars.firstIndex(of: selectedAvatar) ?? 0
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Choose Avatar")
                 .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundColor(Color(hex: accentColor))
+                .foregroundColor(.white)
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 12) {
-                ForEach(avatarOptions, id: \.0) { icon, _ in
-                    AvatarCell(
-                        icon: icon,
-                        isSelected: avatar == icon,
-                        accentColor: accentColor,
-                        onTap: { avatar = icon }
-                    )
+            // Large center avatar with left/right arrows
+            HStack(spacing: 20) {
+                // Left arrow
+                Button(action: {
+                    let prev = (currentIndex - 1 + Self.avatars.count) % Self.avatars.count
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        selectedAvatar = Self.avatars[prev]
+                    }
+                }) {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundColor(Color(hex: accentColor).opacity(0.8))
                 }
+
+                // Avatar image
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: accentColor).opacity(0.15))
+                        .frame(width: 180, height: 180)
+                    Circle()
+                        .stroke(Color(hex: accentColor).opacity(0.4), lineWidth: 3)
+                        .frame(width: 180, height: 180)
+
+                    Image(selectedAvatar)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 160, height: 160)
+                        .clipShape(Circle())
+                        .id(selectedAvatar) // triggers transition
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.85).combined(with: .opacity),
+                            removal:   .scale(scale: 0.85).combined(with: .opacity)
+                        ))
+                }
+
+                // Right arrow
+                Button(action: {
+                    let next = (currentIndex + 1) % Self.avatars.count
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        selectedAvatar = Self.avatars[next]
+                    }
+                }) {
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundColor(Color(hex: accentColor).opacity(0.8))
+                }
+            }
+
+            // Dot indicators
+            HStack(spacing: 8) {
+                ForEach(0..<Self.avatars.count, id: \.self) { i in
+                    Circle()
+                        .fill(i == currentIndex
+                              ? Color(hex: accentColor)
+                              : Color.white.opacity(0.25))
+                        .frame(
+                            width:  i == currentIndex ? 16 : 8,
+                            height: i == currentIndex ? 16 : 8
+                        )
+                        .animation(.spring(), value: currentIndex)
+                }
+            }
+
+            // Thumbnail strip for quick jumping
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(0..<Self.avatars.count, id: \.self) { i in
+                        let name = Self.avatars[i]
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                selectedAvatar = name
+                            }
+                        }) {
+                            Image(name)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 52, height: 52)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(
+                                            name == selectedAvatar
+                                                ? Color(hex: accentColor)
+                                                : Color.white.opacity(0.15),
+                                            lineWidth: name == selectedAvatar ? 3 : 1.5
+                                        )
+                                )
+                                .scaleEffect(name == selectedAvatar ? 1.1 : 1.0)
+                                .animation(.spring(), value: selectedAvatar)
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(16)
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(16)
+        .onAppear {
+            // Default to boy_1 if still on the old SF Symbol default
+            if !Self.avatars.contains(selectedAvatar) {
+                selectedAvatar = Self.avatars[0]
             }
         }
     }
@@ -406,10 +515,9 @@ struct CharacterCell: View {
 
                 Spacer()
 
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(Color(hex: character.color))
-                }
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(Color(hex: character.color))
+                    .opacity(isSelected ? 1 : 0)
             }
             .padding(12)
             .background(isSelected
@@ -473,10 +581,9 @@ struct ThemeCell: View {
 
                 Spacer()
 
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(Color(hex: theme.primaryColor))
-                }
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(Color(hex: theme.primaryColor))
+                    .opacity(isSelected ? 1 : 0)
             }
             .padding(12)
             .background(isSelected

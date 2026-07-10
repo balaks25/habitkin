@@ -102,11 +102,10 @@ struct ThemeCardWithSymbols: View {
                     
                     Spacer()
                     
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(Color(hex: theme.primaryColor))
-                    }
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(Color(hex: theme.primaryColor))
+                        .opacity(isSelected ? 1 : 0)
                 }
                 
                 // Creatures evolution preview with SF Symbols

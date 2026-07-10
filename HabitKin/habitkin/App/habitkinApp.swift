@@ -48,20 +48,11 @@ struct CharacterSelectionViewContainer: View {
     @State private var currentStep = 0
     @State private var childName = ""
     @State private var selectedAge = 7
-    @State private var selectedAvatar = "person.fill"
+    @State private var selectedAvatar = "boy_1"
     @State private var selectedCharacter: Character?
     @State private var selectedTheme: AppTheme?
     
-    let avatarOptions = [
-        ("person.fill", "Person"),
-        ("person.crop.circle.fill", "Circle"),
-        ("star.fill", "Star"),
-        ("heart.fill", "Heart"),
-        ("moon.fill", "Moon"),
-        ("sun.max.fill", "Sun"),
-        ("bolt.fill", "Bolt"),
-        ("leaf.fill", "Leaf")
-    ]
+    let avatarOptions: [(String, String)] = [] // unused — AvatarCarouselPicker handles this
     
     var filteredCharacters: [Character] {
         Character.all.filter { $0.ageRange.contains(selectedAge) }
@@ -94,8 +85,6 @@ struct CharacterSelectionViewContainer: View {
                         Step3_Theme(selectedTheme: $selectedTheme)
                     }
                 }
-                
-                Spacer()
                 
                 // Navigation buttons
                 HStack(spacing: 12) {
@@ -141,8 +130,9 @@ struct CharacterSelectionViewContainer: View {
                     .disabled(!isStepValid())
                     .opacity(isStepValid() ? 1 : 0.5)
                 }
-                .padding(20)
+                .padding(.horizontal, 20)
             }
+            .padding(.horizontal)
         }
     }
     
@@ -187,11 +177,10 @@ struct ThemeOptionCardForApp: View {
                     
                     Spacer()
                     
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(Color(hex: theme.primaryColor))
-                    }
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(Color(hex: theme.primaryColor))
+                        .opacity(isSelected ? 1 : 0)
                 }
                 
                 HStack(spacing: 12) {

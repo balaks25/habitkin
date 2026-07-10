@@ -59,6 +59,10 @@ struct KidChip: View {
     let theme: AppTheme
     let onTap: () -> Void
 
+    private var isAsset: Bool {
+        AvatarCarouselPicker.avatars.contains(kid.avatar)
+    }
+
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 4) {
@@ -69,9 +73,18 @@ struct KidChip: View {
                             : Color.white.opacity(0.07))
                         .frame(width: 50, height: 50)
 
-                    Image(systemName: kid.avatar)
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(isSelected ? Color(hex: theme.primaryColor) : Color.white.opacity(0.5))
+                    // Render asset image or SF Symbol depending on what's stored
+                    if isAsset {
+                        Image(kid.avatar)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 42, height: 42)
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: kid.avatar)
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(isSelected ? Color(hex: theme.primaryColor) : Color.white.opacity(0.5))
+                    }
 
                     // Selected ring
                     if isSelected {

@@ -180,6 +180,7 @@ struct AuthLandingView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 48)
             }
+            .padding(.horizontal)
         }
     }
 }
@@ -251,6 +252,7 @@ struct SignInView: View {
                     }
                 }
             }
+            .padding(.horizontal)
         }
     }
 
@@ -341,7 +343,7 @@ struct SignUpView: View {
                             }
                         }
                         .padding(.horizontal, 24)
-                        .padding(.top, 8)
+                        .padding(.top, 16)
 
                         AuthPrimaryButton(label: "Create Account", isLoading: isLoading, isEnabled: canSubmit, action: signUp)
                             .padding(.horizontal, 24).padding(.top, 20)
@@ -351,6 +353,7 @@ struct SignUpView: View {
                     }
                 }
             }
+            .padding(.horizontal)
         }
     }
 

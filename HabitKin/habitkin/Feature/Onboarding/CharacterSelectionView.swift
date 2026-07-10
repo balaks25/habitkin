@@ -87,7 +87,7 @@ struct CharacterSelectionView: View {
                     .disabled(!isStepValid())
                     .opacity(isStepValid() ? 1 : 0.5)
                 }
-                .padding(20)
+                .padding(.horizontal, 20)
             }
         }
     }
@@ -150,20 +150,19 @@ struct Step1_AgeAvatar: View {
     @Binding var selectedAge: Int
     @Binding var selectedAvatar: String
     let avatarOptions: [(String, String)]
-    
+
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 8) {
                 Text("Age & Avatar")
                     .font(.system(size: 28, weight: .bold))
                     .foregroundColor(.white)
-                
                 Text("How old is your child?")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.gray)
             }
             .padding(.top, 20)
-            
+
             // Age slider
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -175,7 +174,6 @@ struct Step1_AgeAvatar: View {
                         .font(.headline)
                         .foregroundColor(Color(hex: "#6366F1"))
                 }
-                
                 Slider(value: Binding(
                     get: { Double(selectedAge) },
                     set: { selectedAge = Int($0) }
@@ -186,34 +184,11 @@ struct Step1_AgeAvatar: View {
             .background(Color.white.opacity(0.05))
             .cornerRadius(12)
             .padding(.horizontal, 20)
-            
-            // Avatar selection
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Choose Avatar")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-                    ForEach(avatarOptions, id: \.0) { icon, label in
-                        Button(action: { selectedAvatar = icon }) {
-                            Image(systemName: icon)
-                                .font(.system(size: 28, weight: .semibold))
-                                .foregroundColor(selectedAvatar == icon ? Color(hex: "#6366F1") : Color.white.opacity(0.7))
-                                .frame(height: 70)
-                                .frame(maxWidth: .infinity)
-                                .background(selectedAvatar == icon ? Color(hex: "#6366F1").opacity(0.15) : Color.white.opacity(0.05))
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(selectedAvatar == icon ? Color(hex: "#6366F1") : Color.clear, lineWidth: 2)
-                                )
-                        }
-                    }
-                }
+
+            // Avatar carousel
+            AvatarCarouselPicker(selectedAvatar: $selectedAvatar, accentColor: "#6366F1")
                 .padding(.horizontal, 20)
-            }
-            
+
             Spacer()
         }
     }
@@ -248,7 +223,7 @@ struct Step2_Character: View {
                         )
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(20)
             }
             
             Spacer()
@@ -277,16 +252,16 @@ struct CharacterOptionCard: View {
                     Text(character.description)
                         .font(.caption)
                         .foregroundColor(.gray)
+                        .multilineTextAlignment(.leading)
                         .lineLimit(2)
                 }
                 
                 Spacer()
                 
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(Color(hex: character.color))
-                }
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(Color(hex: character.color))
+                    .opacity(isSelected ? 1 : 0)
             }
             .padding(14)
             .background(isSelected ? Color(hex: character.color).opacity(0.12) : Color.white.opacity(0.05))
@@ -327,7 +302,7 @@ struct Step3_Theme: View {
                         )
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(20)
             }
             
             Spacer()
@@ -360,11 +335,10 @@ struct ThemeOptionCard: View {
                     
                     Spacer()
                     
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(Color(hex: theme.primaryColor))
-                    }
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(Color(hex: theme.primaryColor))
+                        .opacity(isSelected ? 1 : 0)
                 }
                 
                 // Creatures evolution preview
