@@ -19,6 +19,10 @@ struct HabitKinApp: App {
                     // Step 1: Auth
                     AuthView { isSignedIn = true }
                 }
+                else if !manager.isLoaded {
+                    // Waiting on the initial kids fetch (mock: instant, real backend: real latency)
+                    SplashLoadingView()
+                }
                 else if manager.hasKids {
                     // Step 3: Main app — kids already saved from previous session
                     MainTabView()
@@ -26,7 +30,7 @@ struct HabitKinApp: App {
                 else {
                     // Step 2: Onboarding — no kids yet
                     CharacterSelectionViewContainer { kid in
-                        manager.addKid(kid) // persists immediately via UserDefaults
+                        manager.addKid(kid) // persists via the data service
                     }
                 }
             }
@@ -40,6 +44,19 @@ struct HabitKinApp: App {
         UINavigationBar.appearance().standardAppearance   = appearance
         UINavigationBar.appearance().compactAppearance    = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
+    }
+}
+
+struct SplashLoadingView: View {
+    var body: some View {
+        ZStack {
+            AuthBackground()
+            VStack(spacing: 20) {
+                HabitKinLogo(size: .medium)
+                ProgressView()
+                    .tint(.white)
+            }
+        }
     }
 }
 

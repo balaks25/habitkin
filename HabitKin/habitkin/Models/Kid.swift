@@ -23,6 +23,7 @@ struct Kid: Identifiable, Codable {
     var kinStage: String = "egg"
     var kinMood: String = "happy"
     var completedQuestIds: Set<String> = []
+    var claimedRewardIds: Set<String> = []
     var lastActivityDate: Date = Date()
     
     var character: Character {

@@ -29,7 +29,7 @@ struct Reward: Identifiable, Codable, Hashable {
         Reward(id: "r_game_pass", name: "Game Pass", description: "One month of gaming subscription", icon: "gamecontroller.fill", coinsCost: 120, category: "screen_time", rarity: "rare"),
         
         // Epic Rewards
-        Reward(id: "r_theme_park", name: "Theme Park Visit", description: "Day trip to theme park", icon: "ferris.wheel", coinsCost: 250, category: "activity", rarity: "epic"),
+        Reward(id: "r_theme_park", name: "Theme Park Visit", description: "Day trip to theme park", icon: "figure.2.and.child.holdinghands", coinsCost: 250, category: "activity", rarity: "epic"),
         Reward(id: "r_shopping_spree", name: "Shopping Spree", description: "₹500 shopping budget", icon: "bag.fill", coinsCost: 300, category: "treat", rarity: "epic"),
         Reward(id: "r_tech_upgrade", name: "New Gadget", description: "New headphones or tech item", icon: "headphones", coinsCost: 350, category: "screen_time", rarity: "epic"),
         

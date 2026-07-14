@@ -258,7 +258,20 @@ struct SignInView: View {
 
     private func signIn() {
         isLoading = true; errorMessage = ""
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { isLoading = false; onSignedIn() }
+        Task {
+            do {
+                _ = try await ServiceLocator.auth.signIn(email: email, password: password)
+                await MainActor.run {
+                    isLoading = false
+                    onSignedIn()
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
     }
 }
 
@@ -359,7 +372,20 @@ struct SignUpView: View {
 
     private func signUp() {
         isLoading = true; errorMessage = ""
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { isLoading = false; onSignedUp() }
+        Task {
+            do {
+                _ = try await ServiceLocator.auth.signUp(name: fullName, email: email, password: password)
+                await MainActor.run {
+                    isLoading = false
+                    onSignedUp()
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
     }
 }
 

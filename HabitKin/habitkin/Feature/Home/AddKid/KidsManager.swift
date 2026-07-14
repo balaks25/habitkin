@@ -12,9 +12,8 @@ import Foundation
 class KidsManager: ObservableObject {
     static let shared = KidsManager()
 
-    @Published var kids: [Kid] = [] {
-        didSet { save() }
-    }
+    @Published var kids: [Kid] = []
+    @Published var isLoaded = false
 
     @Published var selectedKidId: UUID? {
         didSet {
@@ -31,8 +30,22 @@ class KidsManager: ObservableObject {
 
     var hasKids: Bool { !kids.isEmpty }
 
+    private let dataService = ServiceLocator.data
+
     private init() {
-        load()
+        if let idString = UserDefaults.standard.string(forKey: "selectedKidId"),
+           let id = UUID(uuidString: idString) {
+            selectedKidId = id
+        }
+        Task { await loadKids() }
+    }
+
+    // MARK: - Loading
+
+    @MainActor
+    func loadKids() async {
+        kids = (try? await dataService.fetchKids()) ?? []
+        isLoaded = true
     }
 
     // MARK: - Actions
@@ -42,10 +55,17 @@ class KidsManager: ObservableObject {
         if selectedKidId == nil {
             selectedKidId = kid.id
         }
+        Task { _ = try? await dataService.createKid(kid) }
     }
 
     func selectKid(_ kid: Kid) {
         selectedKidId = kid.id
+    }
+
+    func updateKid(_ kid: Kid) {
+        guard let index = kids.firstIndex(where: { $0.id == kid.id }) else { return }
+        kids[index] = kid
+        Task { _ = try? await dataService.updateKid(kid) }
     }
 
     func removeKid(_ kid: Kid) {
@@ -53,26 +73,6 @@ class KidsManager: ObservableObject {
         if selectedKidId == kid.id {
             selectedKidId = kids.first?.id
         }
-    }
-
-    // MARK: - Persistence
-
-    private let kidsKey = "habitkin_kids"
-
-    private func save() {
-        if let data = try? JSONEncoder().encode(kids) {
-            UserDefaults.standard.set(data, forKey: kidsKey)
-        }
-    }
-
-    private func load() {
-        if let data = UserDefaults.standard.data(forKey: kidsKey),
-           let saved = try? JSONDecoder().decode([Kid].self, from: data) {
-            kids = saved
-        }
-        if let idString = UserDefaults.standard.string(forKey: "selectedKidId"),
-           let id = UUID(uuidString: idString) {
-            selectedKidId = id
-        }
+        Task { try? await dataService.deleteKid(id: kid.id) }
     }
 }

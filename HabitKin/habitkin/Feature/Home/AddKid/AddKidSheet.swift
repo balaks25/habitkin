@@ -64,11 +64,7 @@ struct AddKidSheet: View {
 
     var body: some View {
         ZStack {
-            if currentStep < 3 {
-                AuthBackground()
-            } else {
-                Color(hex: bgColor).ignoresSafeArea()
-            }
+            AuthBackground()
 
             VStack(spacing: 0) {
                 dragHandle
@@ -78,6 +74,7 @@ struct AddKidSheet: View {
                 Spacer(minLength: 0)
                 nextButton
             }
+            .padding(.horizontal, 20)
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
@@ -511,6 +508,7 @@ struct CharacterCell: View {
                     Text(character.description)
                         .font(.caption)
                         .foregroundColor(.gray)
+                        .multilineTextAlignment(.leading)
                 }
 
                 Spacer()
@@ -578,8 +576,7 @@ struct ThemeCell: View {
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
-
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(Color(hex: theme.primaryColor))

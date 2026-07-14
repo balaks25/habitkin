@@ -2,13 +2,12 @@
 //  APIService.swift
 //  habitkin
 //
-//  Lightweight API client stub.
-//  Replace the placeholder URL and add auth headers once the backend is ready.
-//  All data fetching will go through this service — no local DB.
+//  Real backend implementations of AuthServicing / KidsDataServicing.
+//  Not wired up yet — endpoint paths are placeholders until a backend exists.
+//  Once ready, swap ServiceLocator.auth/.data to RemoteAuthService()/RemoteDataService().
 //
 
 import Foundation
-import Combine
 
 // MARK: - API Errors
 
@@ -28,16 +27,15 @@ enum APIError: LocalizedError {
     }
 }
 
-// MARK: - APIService
+// MARK: - APIClient
 
-final class APIService: ObservableObject {
+final class APIClient {
 
-    static let shared = APIService()
+    static let shared = APIClient()
 
     // ── Replace with real base URL when backend is ready ─────────────
     private let baseURL = URL(string: "https://api.habitkin.app/v1")!
 
-    // Auth token — set this after sign-in
     var authToken: String? {
         get { UserDefaults.standard.string(forKey: "habitkin_auth_token") }
         set { UserDefaults.standard.set(newValue, forKey: "habitkin_auth_token") }
@@ -51,14 +49,9 @@ final class APIService: ObservableObject {
 
     private init() {}
 
-    // MARK: - Generic request
-
     func request<T: Decodable>(_ path: String,
                                method: String = "GET",
                                body: Encodable? = nil) async throws -> T {
-        guard let token = authToken else { throw APIError.notAuthenticated }
-        _ = token // will be used in headers above
-
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = method
         headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
@@ -78,60 +71,82 @@ final class APIService: ObservableObject {
             throw APIError.decodingFailed(error)
         }
     }
+}
 
-    // MARK: - Kids
+private struct EmptyResponse: Decodable {}
 
-    /// Fetch all kids for the authenticated parent
+// MARK: - RemoteDataService
+
+final class RemoteDataService: KidsDataServicing {
+
     func fetchKids() async throws -> [Kid] {
-        try await request("kids")
+        try await APIClient.shared.request("kids")
     }
 
-    /// Create a new kid profile on the backend
     func createKid(_ kid: Kid) async throws -> Kid {
-        try await request("kids", method: "POST", body: kid)
+        try await APIClient.shared.request("kids", method: "POST", body: kid)
     }
 
-    /// Update an existing kid (after quest completion, reward claim, etc.)
     func updateKid(_ kid: Kid) async throws -> Kid {
-        try await request("kids/\(kid.id.uuidString)", method: "PUT", body: kid)
+        try await APIClient.shared.request("kids/\(kid.id.uuidString)", method: "PUT", body: kid)
     }
 
-    /// Delete a kid profile
     func deleteKid(id: UUID) async throws {
-        let _: EmptyResponse = try await request("kids/\(id.uuidString)", method: "DELETE")
+        let _: EmptyResponse = try await APIClient.shared.request("kids/\(id.uuidString)", method: "DELETE")
     }
 
-    // MARK: - Quests
-
-    /// Fetch quest library (allows server-side customization per user)
-    func fetchQuests() async throws -> [Quest] {
-        try await request("quests")
+    func fetchQuestLibrary() async throws -> [Quest] {
+        try await APIClient.shared.request("quests")
     }
 
-    /// Mark a quest as completed for a kid
-    func completeQuest(kidId: UUID, questId: String) async throws {
-        let _: EmptyResponse = try await request(
-            "kids/\(kidId.uuidString)/quests/\(questId)/complete",
-            method: "POST"
-        )
-    }
-
-    // MARK: - Rewards
-
-    /// Fetch reward catalog
-    func fetchRewards() async throws -> [Reward] {
-        try await request("rewards")
-    }
-
-    /// Claim a reward for a kid
-    func claimReward(kidId: UUID, rewardId: String) async throws {
-        let _: EmptyResponse = try await request(
-            "kids/\(kidId.uuidString)/rewards/\(rewardId)/claim",
-            method: "POST"
-        )
+    func fetchRewardLibrary() async throws -> [Reward] {
+        try await APIClient.shared.request("rewards")
     }
 }
 
-// MARK: - Helpers
+// MARK: - RemoteAuthService
 
-private struct EmptyResponse: Decodable {}
+private struct AuthRequest: Encodable {
+    let name: String?
+    let email: String
+    let password: String
+}
+
+private struct AuthResponse: Decodable {
+    let id: UUID
+    let name: String
+    let email: String
+    let token: String
+}
+
+final class RemoteAuthService: AuthServicing {
+
+    private(set) var currentUser: ParentUser?
+
+    func signUp(name: String, email: String, password: String) async throws -> ParentUser {
+        let response: AuthResponse = try await APIClient.shared.request(
+            "auth/signup", method: "POST",
+            body: AuthRequest(name: name, email: email, password: password)
+        )
+        APIClient.shared.authToken = response.token
+        let user = ParentUser(id: response.id, name: response.name, email: response.email)
+        currentUser = user
+        return user
+    }
+
+    func signIn(email: String, password: String) async throws -> ParentUser {
+        let response: AuthResponse = try await APIClient.shared.request(
+            "auth/signin", method: "POST",
+            body: AuthRequest(name: nil, email: email, password: password)
+        )
+        APIClient.shared.authToken = response.token
+        let user = ParentUser(id: response.id, name: response.name, email: response.email)
+        currentUser = user
+        return user
+    }
+
+    func signOut() {
+        currentUser = nil
+        APIClient.shared.authToken = nil
+    }
+}
