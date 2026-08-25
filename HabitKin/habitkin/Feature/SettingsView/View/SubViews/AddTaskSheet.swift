@@ -9,6 +9,7 @@
 import SwiftUI
 
 struct AddTaskSheet: View {
+    let kid: Kid
     let theme: AppTheme
     let onSave: (Quest) -> Void
     
@@ -51,7 +52,7 @@ struct AddTaskSheet: View {
                             .font(.title3)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
-                        Text("Add a custom task for your child")
+                        Text("Add a custom task for \(kid.name)")
                             .font(.caption)
                             .foregroundColor(.gray)
                     }
@@ -229,16 +230,21 @@ struct AddTaskSheet: View {
                 
                 // Save Button
                 Button(action: {
+                    // Scoped to this one child via `ownerKidId`. The character
+                    // and age fields are left wide open on purpose — the owner
+                    // is what limits visibility, so a quest made for an 11-year
+                    // old still shows up for them.
                     let newQuest = Quest(
                         id: UUID().uuidString,
-                        name: taskName,
+                        name: taskName.trimmingCharacters(in: .whitespaces),
                         description: taskDescription.isEmpty ? taskName : taskDescription,
                         icon: selectedIcon,
                         coins: coinValue,
                         category: selectedCategory,
                         week: selectedWeek,
-                        characterIds: ["screen_zombie", "sleepyhead", "volcano", "shadow", "tornado", "dreamer"],
-                        ageRange: 4...10
+                        characterIds: Character.all.map(\.id),
+                        ageRange: 1...99,
+                        ownerKidId: kid.id
                     )
                     onSave(newQuest)
                     dismiss()

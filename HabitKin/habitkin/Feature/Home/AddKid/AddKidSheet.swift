@@ -220,7 +220,7 @@ struct AddKidSheet: View {
               let theme = selectedTheme else { return }
         let newKid = Kid(
             id: UUID(),
-            name: childName,
+            name: childName.trimmingCharacters(in: .whitespaces),
             avatar: selectedAvatar,
             age: selectedAge,
             characterId: character.id,
@@ -281,7 +281,7 @@ struct AgeAvatarStepContent: View {
                 .foregroundColor(Color(hex: accentColor))
 
             HStack(spacing: 24) {
-                Button(action: { if age > 4 { age -= 1 } }) {
+                Button(action: { if age > Kid.minAge { age -= 1 } }) {
                     Image(systemName: "minus.circle.fill")
                         .font(.system(size: 30))
                         .foregroundColor(Color(hex: accentColor))
@@ -291,7 +291,7 @@ struct AgeAvatarStepContent: View {
                     .foregroundColor(.white)
                     .monospacedDigit()
                     .frame(width: 80)
-                Button(action: { if age < 16 { age += 1 } }) {
+                Button(action: { if age < Kid.maxAge { age += 1 } }) {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 30))
                         .foregroundColor(Color(hex: accentColor))
@@ -470,10 +470,18 @@ struct AvatarCell: View {
 struct CharacterStepContent: View {
     @Binding var selectedCharacter: Character?
     let accentColor: String
+    /// Filtered to the child's age, matching onboarding. Listing all six let a
+    /// parent pair an age with a character whose quests exclude it.
+    var age: Int?
+
+    private var characters: [Character] {
+        guard let age else { return Character.all }
+        return Character.all.filter { $0.ageRange.contains(age) }
+    }
 
     var body: some View {
         VStack(spacing: 12) {
-            ForEach(Character.all) { character in
+            ForEach(characters) { character in
                 CharacterCell(
                     character: character,
                     isSelected: selectedCharacter?.id == character.id,

@@ -10,14 +10,23 @@ import SwiftUI
 struct ParentDashboardView: View {
     let kid: Kid
     let theme: AppTheme
-    
+
     @State private var selectedSection = 0
     @State private var showAddQuest = false
     @State private var showAddReward = false
     @StateObject private var session = ParentSession.shared
-    
+    @ObservedObject private var kidsManager = KidsManager.shared
+    @ObservedObject private var catalog = CatalogManager.shared
+    @Environment(\.dismiss) private var dismiss
+
     let sections = ["Quests", "Rewards"]
-    
+
+    /// Always work off the manager's copy so toggles and deletions reflect
+    /// what was actually saved rather than the snapshot we were handed.
+    private var liveKid: Kid {
+        kidsManager.kids.first { $0.id == kid.id } ?? kid
+    }
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -29,7 +38,7 @@ struct ParentDashboardView: View {
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
-            
+
             VStack(spacing: 0) {
                 // Header
                 VStack(spacing: 12) {
@@ -43,15 +52,19 @@ struct ParentDashboardView: View {
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
                             }
-                            Text("Managing \(kid.name)'s journey")
+                            Text("Managing \(liveKid.name)'s journey")
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
-                        
+
                         Spacer()
-                        
-                        // Lock button
-                        Button(action: { session.lock() }) {
+
+                        // Lock button — also closes the dashboard, since leaving
+                        // it open after locking defeats the point of the gate.
+                        Button(action: {
+                            session.lock()
+                            dismiss()
+                        }) {
                             HStack(spacing: 6) {
                                 Image(systemName: "lock.fill")
                                     .font(.system(size: 14, weight: .semibold))
@@ -68,7 +81,7 @@ struct ParentDashboardView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
-                    
+
                     // Section Picker
                     HStack(spacing: 0) {
                         ForEach(sections.indices, id: \.self) { index in
@@ -91,44 +104,117 @@ struct ParentDashboardView: View {
                     .padding(.horizontal, 20)
                     .background(Color.white.opacity(0.03))
                 }
-                
+
                 // Section Content
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
+                        if let message = catalog.loadState.errorMessage {
+                            // Built-in quests still render from the bundle, so
+                            // without this the parent's own content is simply
+                            // missing with no hint that a load failed.
+                            HStack(spacing: 10) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(Color(hex: "#FBBF24"))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Your custom quests and rewards didn't load")
+                                        .font(.caption).fontWeight(.semibold).foregroundColor(.white)
+                                    Text(message).font(.caption2).foregroundColor(.gray)
+                                }
+                                Spacer()
+                                Button("Retry") { catalog.retryLoad() }
+                                    .font(.caption).fontWeight(.semibold)
+                                    .foregroundColor(Color(hex: theme.primaryColor))
+                            }
+                            .padding(12)
+                            .background(Color(hex: "#FBBF24").opacity(0.1))
+                            .cornerRadius(12)
+                            .padding(.horizontal, 20)
+                        }
+
                         switch selectedSection {
                         case 0:
-                            ManageQuestsSection(kid: kid, theme: theme, showAdd: $showAddQuest)
+                            ManageQuestsSection(
+                                kid: liveKid,
+                                theme: theme,
+                                showAdd: $showAddQuest,
+                                quests: catalog.allQuests(for: liveKid),
+                                onToggle: toggleQuest,
+                                onDelete: catalog.deleteQuest
+                            )
                         case 1:
-                            ManageRewardsSection(kid: kid, theme: theme, showAdd: $showAddReward)
+                            ManageRewardsSection(
+                                kid: liveKid,
+                                theme: theme,
+                                showAdd: $showAddReward,
+                                rewards: catalog.allRewards(for: liveKid),
+                                onToggle: toggleReward,
+                                onDelete: catalog.deleteReward
+                            )
                         default:
                             EmptyView()
                         }
-                        
+
                         Spacer(minLength: 80)
                     }
                     .padding(.top, 16)
                 }
             }
         }
+        // Auto-lock flipped isUnlocked but left this sheet open, so the parent
+        // kept editing through a locked gate.
+        .onChange(of: session.isUnlocked) { unlocked in
+            if !unlocked { dismiss() }
+        }
         .sheet(isPresented: $showAddQuest) {
-            AddQuestSheet(kid: kid, theme: theme, isPresented: $showAddQuest)
+            AddTaskSheet(kid: liveKid, theme: theme) { quest in
+                catalog.addQuest(quest)
+            }
         }
         .sheet(isPresented: $showAddReward) {
-            AddRewardSheet(kid: kid, theme: theme, isPresented: $showAddReward)
+            AddRewardSheet(kid: liveKid, theme: theme) { reward in
+                catalog.addReward(reward)
+            }
         }
+    }
+
+    // MARK: - Actions
+
+    private func toggleQuest(_ quest: Quest, isActive: Bool) {
+        session.extendSession()
+        var updated = liveKid
+        if isActive {
+            updated.disabledQuestIds.remove(quest.id)
+        } else {
+            updated.disabledQuestIds.insert(quest.id)
+        }
+        kidsManager.updateKid(updated)
+    }
+
+    private func toggleReward(_ reward: Reward, isActive: Bool) {
+        session.extendSession()
+        var updated = liveKid
+        if isActive {
+            updated.disabledRewardIds.remove(reward.id)
+        } else {
+            updated.disabledRewardIds.insert(reward.id)
+        }
+        kidsManager.updateKid(updated)
     }
 }
 
 // MARK: - Manage Quests Section
+
 struct ManageQuestsSection: View {
     let kid: Kid
     let theme: AppTheme
     @Binding var showAdd: Bool
-    
-    var kidQuests: [Quest] {
-        Quest.questLibrary.filter { $0.characterIds.contains(kid.characterId) }
-    }
-    
+    let quests: [Quest]
+    let onToggle: (Quest, Bool) -> Void
+    let onDelete: (Quest) -> Void
+
+    private var builtIn: [Quest] { quests.filter { $0.ownerKidId == nil } }
+    private var custom: [Quest]  { quests.filter { $0.ownerKidId != nil } }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Add Button
@@ -151,16 +237,39 @@ struct ManageQuestsSection: View {
                 )
             }
             .padding(.horizontal, 20)
-            
-            // Quests List
-            Text("Active Quests")
+
+            if !custom.isEmpty {
+                Text("Your Quests")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .padding(.horizontal, 20)
+
+                ForEach(custom) { quest in
+                    ManageQuestRow(
+                        quest: quest,
+                        theme: theme,
+                        isActive: !kid.disabledQuestIds.contains(quest.id),
+                        onToggle: { onToggle(quest, $0) },
+                        onDelete: { onDelete(quest) }
+                    )
+                    .padding(.horizontal, 20)
+                }
+            }
+
+            Text("Built-in Quests")
                 .font(.subheadline)
                 .foregroundColor(.gray)
                 .padding(.horizontal, 20)
-            
-            ForEach(kidQuests) { quest in
-                ManageQuestRow(quest: quest, theme: theme)
-                    .padding(.horizontal, 20)
+
+            ForEach(builtIn) { quest in
+                ManageQuestRow(
+                    quest: quest,
+                    theme: theme,
+                    isActive: !kid.disabledQuestIds.contains(quest.id),
+                    onToggle: { onToggle(quest, $0) },
+                    onDelete: nil
+                )
+                .padding(.horizontal, 20)
             }
         }
     }
@@ -169,8 +278,11 @@ struct ManageQuestsSection: View {
 struct ManageQuestRow: View {
     let quest: Quest
     let theme: AppTheme
-    @State private var isActive = true
-    
+    let isActive: Bool
+    let onToggle: (Bool) -> Void
+    /// nil for built-in quests, which can be switched off but not removed.
+    let onDelete: (() -> Void)?
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: quest.icon)
@@ -179,7 +291,7 @@ struct ManageQuestRow: View {
                 .frame(width: 44, height: 44)
                 .background(isActive ? Color(hex: theme.primaryColor).opacity(0.1) : Color.white.opacity(0.05))
                 .cornerRadius(10)
-            
+
             VStack(alignment: .leading, spacing: 3) {
                 Text(quest.name)
                     .font(.subheadline)
@@ -189,15 +301,24 @@ struct ManageQuestRow: View {
                     Image(systemName: "star.fill")
                         .font(.system(size: 10))
                         .foregroundColor(Color(hex: theme.primaryColor))
-                    Text("\(quest.coins) coins · Week \(quest.week)")
+                    Text("\(quest.coins) coins · Week \(quest.week) · \(quest.isRepeatable ? "Daily" : "One-time")")
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
             }
-            
+
             Spacer()
-            
-            Toggle("", isOn: $isActive)
+
+            if let onDelete {
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Color(hex: "#EF4444"))
+                        .frame(width: 32, height: 32)
+                }
+            }
+
+            Toggle("", isOn: Binding(get: { isActive }, set: onToggle))
                 .tint(Color(hex: theme.primaryColor))
                 .labelsHidden()
         }
@@ -208,11 +329,18 @@ struct ManageQuestRow: View {
 }
 
 // MARK: - Manage Rewards Section
+
 struct ManageRewardsSection: View {
     let kid: Kid
     let theme: AppTheme
     @Binding var showAdd: Bool
-    
+    let rewards: [Reward]
+    let onToggle: (Reward, Bool) -> Void
+    let onDelete: (Reward) -> Void
+
+    private var builtIn: [Reward] { rewards.filter { $0.ownerKidId == nil } }
+    private var custom: [Reward]  { rewards.filter { $0.ownerKidId != nil } }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Add Button
@@ -235,15 +363,39 @@ struct ManageRewardsSection: View {
                 )
             }
             .padding(.horizontal, 20)
-            
-            Text("All Rewards")
+
+            if !custom.isEmpty {
+                Text("Your Rewards")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .padding(.horizontal, 20)
+
+                ForEach(custom) { reward in
+                    ManageRewardRow(
+                        reward: reward,
+                        theme: theme,
+                        isActive: !kid.disabledRewardIds.contains(reward.id),
+                        onToggle: { onToggle(reward, $0) },
+                        onDelete: { onDelete(reward) }
+                    )
+                    .padding(.horizontal, 20)
+                }
+            }
+
+            Text("Built-in Rewards")
                 .font(.subheadline)
                 .foregroundColor(.gray)
                 .padding(.horizontal, 20)
-            
-            ForEach(Reward.rewardLibrary) { reward in
-                ManageRewardRow(reward: reward, theme: theme)
-                    .padding(.horizontal, 20)
+
+            ForEach(builtIn) { reward in
+                ManageRewardRow(
+                    reward: reward,
+                    theme: theme,
+                    isActive: !kid.disabledRewardIds.contains(reward.id),
+                    onToggle: { onToggle(reward, $0) },
+                    onDelete: nil
+                )
+                .padding(.horizontal, 20)
             }
         }
     }
@@ -252,8 +404,10 @@ struct ManageRewardsSection: View {
 struct ManageRewardRow: View {
     let reward: Reward
     let theme: AppTheme
-    @State private var isActive = true
-    
+    let isActive: Bool
+    let onToggle: (Bool) -> Void
+    let onDelete: (() -> Void)?
+
     var rarityColor: Color {
         switch reward.rarity {
         case "rare": return Color(hex: "#3B82F6")
@@ -262,7 +416,7 @@ struct ManageRewardRow: View {
         default: return Color.white.opacity(0.6)
         }
     }
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: reward.icon)
@@ -271,7 +425,7 @@ struct ManageRewardRow: View {
                 .frame(width: 44, height: 44)
                 .background(isActive ? rarityColor.opacity(0.1) : Color.white.opacity(0.05))
                 .cornerRadius(10)
-            
+
             VStack(alignment: .leading, spacing: 3) {
                 Text(reward.name)
                     .font(.subheadline)
@@ -286,10 +440,19 @@ struct ManageRewardRow: View {
                         .foregroundColor(.gray)
                 }
             }
-            
+
             Spacer()
-            
-            Toggle("", isOn: $isActive)
+
+            if let onDelete {
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Color(hex: "#EF4444"))
+                        .frame(width: 32, height: 32)
+                }
+            }
+
+            Toggle("", isOn: Binding(get: { isActive }, set: onToggle))
                 .tint(Color(hex: theme.primaryColor))
                 .labelsHidden()
         }
@@ -299,156 +462,19 @@ struct ManageRewardRow: View {
     }
 }
 
-// MARK: - Add Quest Sheet
-struct AddQuestSheet: View {
-    let kid: Kid
-    let theme: AppTheme
-    @Binding var isPresented: Bool
-    
-    @State private var questName = ""
-    @State private var questDescription = ""
-    @State private var coinValue = 10
-    @State private var selectedIcon = "star.fill"
-    @Environment(\.dismiss) var dismiss
-    
-    let iconOptions = ["star.fill", "heart.fill", "bolt.fill", "book.fill", "moon.fill", "sun.max.fill", "leaf.fill", "flame.fill", "wind", "sparkles", "figure.walk", "house.fill"]
-    
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(hex: theme.secondaryColor),
-                    Color(hex: theme.secondaryColor).opacity(0.5)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: 20) {
-                // Header
-                HStack {
-                    Text("Add Custom Quest")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                    Spacer()
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 24))
-                    }
-                }
-                .padding()
-                
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 16) {
-                        // Quest Name
-                        FormField(label: "Quest Name", placeholder: "e.g. Clean Your Room") { textField in
-                            TextField("Quest name", text: $questName)
-                                .foregroundColor(.white)
-                        }
-                        
-                        // Quest Description
-                        FormField(label: "Description", placeholder: "What does this involve?") { _ in
-                            TextField("Short description", text: $questDescription)
-                                .foregroundColor(.white)
-                        }
-                        
-                        // Icon picker
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Choose Icon")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                            
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 12) {
-                                ForEach(iconOptions, id: \.self) { icon in
-                                    Button(action: { selectedIcon = icon }) {
-                                        Image(systemName: icon)
-                                            .font(.system(size: 20, weight: .semibold))
-                                            .foregroundColor(selectedIcon == icon ? Color(hex: theme.primaryColor) : Color.white.opacity(0.5))
-                                            .frame(width: 44, height: 44)
-                                            .background(selectedIcon == icon ? Color(hex: theme.primaryColor).opacity(0.2) : Color.white.opacity(0.05))
-                                            .cornerRadius(10)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        // Coin Value Stepper
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Coin Value")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                            
-                            HStack {
-                                Button(action: { if coinValue > 5 { coinValue -= 5 } }) {
-                                    Image(systemName: "minus.circle.fill")
-                                        .font(.system(size: 28))
-                                        .foregroundColor(Color(hex: theme.primaryColor))
-                                }
-                                
-                                Spacer()
-                                
-                                HStack(spacing: 6) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(Color(hex: theme.primaryColor))
-                                    Text("\(coinValue)")
-                                        .font(.system(size: 32, weight: .bold))
-                                        .foregroundColor(.white)
-                                    Text("coins")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
-                                }
-                                
-                                Spacer()
-                                
-                                Button(action: { coinValue += 5 }) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .font(.system(size: 28))
-                                        .foregroundColor(Color(hex: theme.primaryColor))
-                                }
-                            }
-                            .padding(16)
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(12)
-                        }
-                        .padding(.horizontal, 20)
-                    }
-                }
-                
-                // Save Button
-                Button(action: { dismiss() }) {
-                    Text("Add Quest")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(14)
-                        .background(questName.isEmpty ? Color.white.opacity(0.2) : Color(hex: theme.primaryColor))
-                        .cornerRadius(12)
-                }
-                .disabled(questName.isEmpty)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
-            }
-        }
-    }
-}
-
 // MARK: - Reusable Form Field
+
 struct FormField<Content: View>: View {
     let label: String
     let placeholder: String
     @ViewBuilder let content: (String) -> Content
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
                 .font(.headline)
                 .foregroundColor(.white)
-            
+
             content(placeholder)
                 .padding(12)
                 .background(Color.white.opacity(0.08))

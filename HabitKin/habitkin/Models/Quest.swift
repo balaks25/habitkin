@@ -18,6 +18,12 @@ struct Quest: Identifiable, Codable, Hashable {
     let week: Int
     let characterIds: [String]
     let ageRange: ClosedRange<Int>
+    /// Set for parent-created quests; nil for the built-in library. Custom
+    /// quests belong to exactly one child and bypass the built-in age gate.
+    var ownerKidId: UUID? = nil
+
+    /// Daily quests reset every midnight; special missions are one-time.
+    var isRepeatable: Bool { category == "daily" }
     
     static let questLibrary: [Quest] = [
         // WEEK 1 - All Characters
@@ -44,11 +50,4 @@ struct Quest: Identifiable, Codable, Hashable {
         Quest(id: "q_help_family", name: "Become a Hero", description: "Help family without being asked", icon: "heart.fill", coins: 50, category: "special", week: 4, characterIds: ["screen_zombie", "sleepyhead", "volcano", "shadow", "tornado", "dreamer"], ageRange: 4...10)
     ]
     
-    static func questsFor(character: Character, week: Int, age: Int) -> [Quest] {
-        questLibrary.filter { quest in
-            quest.characterIds.contains(character.id) &&
-            quest.week == week &&
-            quest.ageRange.contains(age)
-        }
-    }
 }

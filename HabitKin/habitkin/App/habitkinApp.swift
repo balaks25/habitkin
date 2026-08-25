@@ -11,15 +11,32 @@ import SwiftUI
 struct HabitKinApp: App {
     @AppStorage("isSignedIn") private var isSignedIn = false
     @StateObject private var manager = KidsManager.shared
+    @Environment(\.scenePhase) private var scenePhase
+
+    /// Set when a stored token turns out to be invalid, so the parent is told
+    /// why they're back at the sign-in screen instead of just being dumped there.
+    @State private var sessionNotice: String?
+    @State private var isRestoringSession = false
 
     var body: some Scene {
         WindowGroup {
             Group {
-                if !isSignedIn {
-                    // Step 1: Auth
-                    AuthView { isSignedIn = true }
+                if isRestoringSession {
+                    SplashLoadingView()
                 }
-                else if !manager.isLoaded {
+                else if !isSignedIn {
+                    // Step 1: Auth
+                    AuthView(notice: sessionNotice) {
+                        sessionNotice = nil
+                        isSignedIn = true
+                    }
+                }
+                else if let message = manager.loadState.errorMessage {
+                    // A failed load is NOT an empty account — offer a retry
+                    // rather than routing into "add your first child".
+                    LoadFailureView(message: message) { manager.retryLoad() }
+                }
+                else if manager.loadState.isLoading {
                     // Waiting on the initial kids fetch (mock: instant, real backend: real latency)
                     SplashLoadingView()
                 }
@@ -35,6 +52,29 @@ struct HabitKinApp: App {
                 }
             }
             .preferredColorScheme(.dark)
+            .task {
+                // A stored token means a returning parent shouldn't see the
+                // sign-in wall again; a rejected one means they should.
+                guard isSignedIn, ServiceLocator.backend == .remote else { return }
+                isRestoringSession = true
+                let user = await ServiceLocator.auth.restoreSession()
+                isRestoringSession = false
+                if user == nil {
+                    sessionNotice = "Your session expired. Please sign in again."
+                    isSignedIn = false
+                }
+            }
+            .onChange(of: scenePhase) { phase in
+                guard phase == .active else { return }
+                // Coming back to the app is the best moment to retry anything
+                // that was queued while offline, and to reschedule reminders.
+                manager.flushPendingWrites()
+                NotificationService.rescheduleIfAuthorized(AppPreferences.shared)
+                // A load that failed while backgrounded gets another chance.
+                if isSignedIn, manager.loadState.errorMessage != nil {
+                    manager.retryLoad()
+                }
+            }
         }
     }
 
@@ -44,6 +84,48 @@ struct HabitKinApp: App {
         UINavigationBar.appearance().standardAppearance   = appearance
         UINavigationBar.appearance().compactAppearance    = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
+
+        NotificationService.rescheduleIfAuthorized(AppPreferences.shared)
+        KidsManager.shared.flushPendingWrites()
+    }
+}
+
+struct LoadFailureView: View {
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        ZStack {
+            AuthBackground()
+            VStack(spacing: 20) {
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundColor(Color(hex: "#A78BFA"))
+
+                VStack(spacing: 8) {
+                    Text("Couldn't load your profiles")
+                        .font(.title3).fontWeight(.bold).foregroundColor(.white)
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundColor(Color.white.opacity(0.5))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 32)
+
+                Text("Your data is safe — nothing has been changed.")
+                    .font(.caption)
+                    .foregroundColor(Color.white.opacity(0.35))
+
+                Button(action: onRetry) {
+                    Text("Try Again")
+                        .font(.headline).fontWeight(.bold).foregroundColor(.white)
+                        .padding(.horizontal, 40).padding(.vertical, 14)
+                        .background(Color(hex: "#6C3FF5"))
+                        .cornerRadius(14)
+                }
+                .padding(.top, 4)
+            }
+        }
     }
 }
 

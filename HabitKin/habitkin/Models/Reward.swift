@@ -16,6 +16,11 @@ struct Reward: Identifiable, Codable, Hashable {
     let coinsCost: Int
     let category: String // "screen_time", "treat", "activity", "special"
     let rarity: String // "common", "rare", "epic", "legendary"
+    /// Set for parent-created rewards; nil for the built-in library.
+    var ownerKidId: UUID? = nil
+
+    static let categories = ["screen_time", "treat", "activity", "special"]
+    static let rarities = ["common", "rare", "epic", "legendary"]
     
     static let rewardLibrary: [Reward] = [
         // Common Rewards
@@ -38,7 +43,4 @@ struct Reward: Identifiable, Codable, Hashable {
         Reward(id: "r_ultimate_prize", name: "Ultimate Prize", description: "Your choice of any reward", icon: "crown.fill", coinsCost: 600, category: "special", rarity: "legendary")
     ]
     
-    static func rewardsByCategory(_ category: String) -> [Reward] {
-        rewardLibrary.filter { $0.category == category }
-    }
 }

@@ -8,8 +8,10 @@
 import SwiftUI
 
 struct HomeView: View {
-    @State private var kid: Kid
-    let onUpdate: (Kid) -> Void
+    let kid: Kid
+
+    @ObservedObject private var catalog = CatalogManager.shared
+    @ObservedObject private var manager = KidsManager.shared
 
     @State private var showCelebration = false
     @State private var celebrationMessage = ""
@@ -18,11 +20,10 @@ struct HomeView: View {
     @State private var progressWidth: CGFloat = 0
     @State private var headerScale: CGFloat = 0.8
     @State private var statsVisible = false
-    @State private var completedTodayCount = 0
+    @State private var actionNotice: String?
 
-    init(kid: Kid, onUpdate: @escaping (Kid) -> Void) {
-        _kid = State(initialValue: kid)
-        self.onUpdate = onUpdate
+    init(kid: Kid) {
+        self.kid = kid
     }
 
     var theme: AppTheme {
@@ -30,14 +31,25 @@ struct HomeView: View {
     }
 
     var availableQuests: [Quest] {
-        let allQuests = kid.getCurrentWeekQuests().filter { !kid.completedQuestIds.contains($0.id) }
-        let dailyQuests = allQuests.filter { $0.category == "daily" }
-        let specialQuests = allQuests.filter { $0.category == "special" }
-        return dailyQuests + specialQuests
+        catalog.availableQuests(for: kid)
     }
 
     private var progressFraction: CGFloat {
-        CGFloat(max(kid.totalEarned % 500, 1)) / 500.0
+        CGFloat(kid.stageProgress)
+    }
+
+    /// "All done!" is only true if there was something to do. Otherwise the
+    /// child is being congratulated for work never offered.
+    private var dailyEmptyMessage: String {
+        let weeksDailies = catalog.quests(for: kid, week: kid.currentWeek)
+            .filter(\.isRepeatable)
+        if weeksDailies.isEmpty {
+            return "No daily quests set up yet — ask a grown-up to add some."
+        }
+        if weeksDailies.allSatisfy({ kid.disabledQuestIds.contains($0.id) }) {
+            return "Daily quests are switched off right now."
+        }
+        return "All daily quests completed!"
     }
 
     var body: some View {
@@ -170,7 +182,7 @@ struct HomeView: View {
                                         .font(.caption2)
                                         .foregroundColor(.gray)
                                     Spacer()
-                                    Text("\(kid.totalEarned % 500)/500")
+                                    Text(kid.stageProgressLabel)
                                         .font(.caption2)
                                         .fontWeight(.semibold)
                                         .foregroundColor(Color(hex: theme.accentColor))
@@ -196,6 +208,11 @@ struct HomeView: View {
                                             .frame(width: progressWidth * geo.size.width, height: 10)
                                             .onAppear {
                                                 withAnimation(.easeOut(duration: 1.0).delay(0.4)) {
+                                                    progressWidth = progressFraction
+                                                }
+                                            }
+                                            .onChange(of: kid.totalEarned) { _ in
+                                                withAnimation(.easeOut(duration: 0.6)) {
                                                     progressWidth = progressFraction
                                                 }
                                             }
@@ -252,7 +269,7 @@ struct HomeView: View {
                             icon: "calendar.badge.checkmark",
                             quests: availableQuests.filter { $0.category == "daily" },
                             theme: theme,
-                            emptyMessage: "All daily quests completed!",
+                            emptyMessage: dailyEmptyMessage,
                             onComplete: completeQuest
                         )
 
@@ -276,6 +293,20 @@ struct HomeView: View {
                 
             }
 
+            if let actionNotice {
+                VStack {
+                    Spacer()
+                    Text(actionNotice)
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 18).padding(.vertical, 12)
+                        .background(Color.black.opacity(0.75))
+                        .cornerRadius(12)
+                        .padding(.bottom, 110)
+                }
+                .transition(.opacity)
+            }
+
             // ── Celebration Overlay ──────────────────────────────────
             if showCelebration {
                 ConfettiCelebrationView(
@@ -292,22 +323,15 @@ struct HomeView: View {
     }
 
     private func completeQuest(_ quest: Quest) {
-        guard !kid.completedQuestIds.contains(quest.id) else { return }
-
-        kid.totalCoins += quest.coins
-        kid.totalEarned += quest.coins
-        kid.totalCompleted += 1
-        kid.completedQuestIds.insert(quest.id)
-        kid.lastActivityDate = Date()
-        kid.updateKinStage()
-        completedTodayCount += 1
-        kid.updateKinMood(dailyCompleted: completedTodayCount)
-
-        if kid.totalCompleted % 10 == 0 && kid.currentWeek < 4 {
-            kid.currentWeek += 1
+        // The manager owns the payout, the week rule and the server sync, so
+        // the completion is recorded in exactly one place.
+        guard manager.completeQuest(quest, for: kid) else {
+            // Previously the child got the press animation and then nothing at
+            // all — no coins, no confetti, no explanation.
+            showNotice("\(quest.name) is already done for today.")
+            return
         }
-
-        onUpdate(kid)
+        Feedback.questCompleted()
 
         celebrationMessage = quest.name
         celebrationCoins = quest.coins
@@ -318,6 +342,13 @@ struct HomeView: View {
             withAnimation(.easeOut(duration: 0.3)) {
                 showCelebration = false
             }
+        }
+    }
+
+    private func showNotice(_ message: String) {
+        withAnimation(.easeInOut(duration: 0.2)) { actionNotice = message }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation(.easeOut(duration: 0.25)) { actionNotice = nil }
         }
     }
 

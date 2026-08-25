@@ -11,17 +11,28 @@ import SwiftUI
 struct AddRewardSheet: View {
     let kid: Kid
     let theme: AppTheme
-    @Binding var isPresented: Bool
+    let onSave: (Reward) -> Void
     
     @State private var rewardName = ""
     @State private var rewardDescription = ""
     @State private var coinCost = 50
     @State private var selectedIcon = "gift.fill"
     @State private var selectedRarity = "common"
+    @State private var selectedCategory = "treat"
     @Environment(\.dismiss) var dismiss
     
     let iconOptions = ["gift.fill", "star.fill", "heart.fill", "moon.stars.fill", "gamecontroller.fill", "film", "fork.knife", "bag.fill", "airplane", "crown.fill", "bolt.fill", "sparkles"]
-    let rarities = ["common", "rare", "epic", "legendary"]
+    let rarities = Reward.rarities
+    let categories: [(String, String)] = [
+        ("screen_time", "Screen Time"),
+        ("treat", "Treat"),
+        ("activity", "Activity"),
+        ("special", "Special")
+    ]
+    
+    var canSave: Bool {
+        !rewardName.trimmingCharacters(in: .whitespaces).isEmpty
+    }
     
     var body: some View {
         ZStack {
@@ -79,6 +90,29 @@ struct AddRewardSheet: View {
                                             .frame(width: 44, height: 44)
                                             .background(selectedIcon == icon ? Color(hex: theme.primaryColor).opacity(0.2) : Color.white.opacity(0.05))
                                             .cornerRadius(10)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        
+                        // Category Picker
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Category")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
+                                ForEach(categories, id: \.0) { value, label in
+                                    Button(action: { selectedCategory = value }) {
+                                        Text(label)
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(selectedCategory == value ? Color(hex: theme.primaryColor) : Color.white.opacity(0.5))
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 10)
+                                            .background(selectedCategory == value ? Color(hex: theme.primaryColor).opacity(0.2) : Color.white.opacity(0.05))
+                                            .cornerRadius(8)
                                     }
                                 }
                             }
@@ -150,20 +184,39 @@ struct AddRewardSheet: View {
                     }
                 }
                 
-                Button(action: { dismiss() }) {
+                Button(action: saveReward) {
                     Text("Add Reward")
                         .font(.headline)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(14)
-                        .background(rewardName.isEmpty ? Color.white.opacity(0.2) : Color(hex: theme.primaryColor))
+                        .background(canSave ? Color(hex: theme.primaryColor) : Color.white.opacity(0.2))
                         .cornerRadius(12)
                 }
-                .disabled(rewardName.isEmpty)
+                .disabled(!canSave)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
             }
         }
+    }
+    
+    private func saveReward() {
+        let name = rewardName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        
+        // Scoped to this child via `ownerKidId`, same as custom quests.
+        let reward = Reward(
+            id: UUID().uuidString,
+            name: name,
+            description: rewardDescription.isEmpty ? name : rewardDescription,
+            icon: selectedIcon,
+            coinsCost: coinCost,
+            category: selectedCategory,
+            rarity: selectedRarity,
+            ownerKidId: kid.id
+        )
+        onSave(reward)
+        dismiss()
     }
 }

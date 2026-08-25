@@ -6,14 +6,22 @@
 //
 
 import SwiftUI
-import AuthenticationServices
 
 // MARK: - Auth Flow Container
 struct AuthView: View {
+    /// e.g. "Your session expired." Shown once so a forced sign-out isn't
+    /// silent — the parent used to just reappear on the landing screen.
+    var notice: String?
     let onSignedIn: () -> Void
     @State private var screen: AuthScreen = .landing
 
     enum AuthScreen { case landing, signIn, signUp }
+
+    init(notice: String? = nil, onSignedIn: @escaping () -> Void) {
+        self.notice = notice
+        self.onSignedIn = onSignedIn
+        _screen = State(initialValue: notice == nil ? .landing : .signIn)
+    }
 
     var body: some View {
         ZStack {
@@ -22,7 +30,7 @@ struct AuthView: View {
                 AuthLandingView(onSignIn: { screen = .signIn }, onSignUp: { screen = .signUp })
                     .transition(.opacity)
             case .signIn:
-                SignInView(onBack: { screen = .landing }, onSignedIn: onSignedIn, onGoToSignUp: { screen = .signUp })
+                SignInView(notice: notice, onBack: { screen = .landing }, onSignedIn: onSignedIn, onGoToSignUp: { screen = .signUp })
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             case .signUp:
                 SignUpView(onBack: { screen = .landing }, onSignedUp: onSignedIn, onGoToSignIn: { screen = .signIn })
@@ -187,6 +195,7 @@ struct AuthLandingView: View {
 
 // MARK: - Sign In
 struct SignInView: View {
+    var notice: String?
     let onBack: () -> Void
     let onSignedIn: () -> Void
     let onGoToSignUp: () -> Void
@@ -196,8 +205,12 @@ struct SignInView: View {
     @State private var showPassword = false
     @State private var isLoading = false
     @State private var errorMessage = ""
+    @State private var infoMessage = ""
+    @State private var isSendingReset = false
 
-    var canSubmit: Bool { !email.isEmpty && password.count >= 6 }
+    var canSubmit: Bool {
+        Validators.isValidEmail(email) && Validators.isValidPassword(password)
+    }
 
     var body: some View {
         ZStack {
@@ -220,26 +233,32 @@ struct SignInView: View {
                         }
                         .padding(.bottom, 36)
 
-                        // Social buttons
-                        VStack(spacing: 12) {
-                            SocialButton(label: "Continue with Apple",   icon: "apple.logo",  gradient: nil,              action: onSignedIn)
-                            SocialButton(label: "Continue with Google",  icon: nil,           gradient: nil,              action: onSignedIn, isGoogle: true)
-                        }
-                        .padding(.horizontal, 24)
-
-                        AuthDivider()
-
                         // Fields
                         VStack(spacing: 14) {
-                            AuthField(icon: "envelope.fill",   placeholder: "Email address",        text: $email,    isSecure: false, keyboardType: .emailAddress)
-                            AuthField(icon: "lock.fill",       placeholder: "Password",              text: $password, isSecure: !showPassword, showToggle: true, showPassword: $showPassword)
+                            AuthField(icon: "envelope.fill", placeholder: "Email address", text: $email,
+                                      isSecure: false, keyboardType: .emailAddress,
+                                      capitalization: .never, contentType: .username,
+                                      errorText: Validators.isValidEmail(email) ? nil : "Enter a valid email address.")
+                            AuthField(icon: "lock.fill", placeholder: "Password (min \(Validators.minimumPasswordLength) chars)",
+                                      text: $password, isSecure: !showPassword,
+                                      showToggle: true, showPassword: $showPassword,
+                                      capitalization: .never, contentType: .password,
+                                      errorText: Validators.isValidPassword(password) ? nil : "At least \(Validators.minimumPasswordLength) characters.")
 
+                            if let notice, errorMessage.isEmpty, infoMessage.isEmpty {
+                                AuthInfoBanner(message: notice)
+                            }
                             if !errorMessage.isEmpty { AuthErrorBanner(message: errorMessage) }
+                            if !infoMessage.isEmpty { AuthInfoBanner(message: infoMessage) }
 
                             HStack {
                                 Spacer()
-                                Button("Forgot password?") {}
-                                    .font(.caption).foregroundColor(Color(hex: "#A78BFA"))
+                                Button(isSendingReset ? "Sending…" : "Forgot password?") {
+                                    sendPasswordReset()
+                                }
+                                .font(.caption)
+                                .foregroundColor(Color(hex: "#A78BFA"))
+                                .disabled(isSendingReset)
                             }
                         }
                         .padding(.horizontal, 24)
@@ -256,8 +275,34 @@ struct SignInView: View {
         }
     }
 
+    private func sendPasswordReset() {
+        guard Validators.isValidEmail(email) else {
+            errorMessage = "Enter your email address first, then tap Forgot password."
+            return
+        }
+        isSendingReset = true; errorMessage = ""; infoMessage = ""
+        Task {
+            do {
+                try await ServiceLocator.auth.requestPasswordReset(email: email)
+                await MainActor.run {
+                    isSendingReset = false
+                    // Worded to avoid confirming whether the address is
+                    // registered — that would be an enumeration leak.
+                    infoMessage = "If that email has an account, a reset link is on its way."
+                }
+            } catch {
+                // A transport failure is a different thing from "we won't say",
+                // and the parent needs to know the request never left the device.
+                await MainActor.run {
+                    isSendingReset = false
+                    errorMessage = "Couldn't send the reset email. \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     private func signIn() {
-        isLoading = true; errorMessage = ""
+        isLoading = true; errorMessage = ""; infoMessage = ""
         Task {
             do {
                 _ = try await ServiceLocator.auth.signIn(email: email, password: password)
@@ -283,13 +328,35 @@ struct SignUpView: View {
 
     @State private var fullName = ""
     @State private var email = ""
+    @State private var phone = ""
     @State private var password = ""
+    @State private var confirmPassword = ""
     @State private var showPassword = false
     @State private var agreedToTerms = false
     @State private var isLoading = false
     @State private var errorMessage = ""
 
-    var canSubmit: Bool { !fullName.isEmpty && !email.isEmpty && password.count >= 6 && agreedToTerms }
+    private var passwordsMatch: Bool { password == confirmPassword }
+
+    var canSubmit: Bool {
+        !fullName.trimmingCharacters(in: .whitespaces).isEmpty
+            && Validators.isValidEmail(email)
+            && Validators.isValidPassword(password)
+            && passwordsMatch
+            && Validators.isValidPhone(phone)
+            && agreedToTerms
+    }
+
+    /// Spelled out under the button, so a disabled button is never a dead end.
+    private var blockingReason: String? {
+        if fullName.trimmingCharacters(in: .whitespaces).isEmpty { return "Enter your name." }
+        if !Validators.isValidEmail(email) { return "Enter a valid email address." }
+        if !Validators.isValidPhone(phone) { return "That phone number doesn't look right — or leave it blank." }
+        if !Validators.isValidPassword(password) { return "Password needs at least \(Validators.minimumPasswordLength) characters." }
+        if !passwordsMatch { return "Passwords don't match." }
+        if !agreedToTerms { return "Please accept the Terms and Privacy Policy." }
+        return nil
+    }
 
     var body: some View {
         ZStack {
@@ -312,18 +379,30 @@ struct SignUpView: View {
                         }
                         .padding(.bottom, 36)
 
-                        VStack(spacing: 12) {
-                            SocialButton(label: "Continue with Apple",  icon: "apple.logo", action: onSignedUp)
-                            SocialButton(label: "Continue with Google", icon: nil,          action: onSignedUp, isGoogle: true)
-                        }
-                        .padding(.horizontal, 24)
-
-                        AuthDivider()
-
                         VStack(spacing: 14) {
-                            AuthField(icon: "person.fill",    placeholder: "Full name",              text: $fullName,  isSecure: false)
-                            AuthField(icon: "envelope.fill",  placeholder: "Email address",          text: $email,     isSecure: false, keyboardType: .emailAddress)
-                            AuthField(icon: "lock.fill",      placeholder: "Password (min 6 chars)", text: $password,  isSecure: !showPassword, showToggle: true, showPassword: $showPassword)
+                            AuthField(icon: "person.fill", placeholder: "Full name", text: $fullName,
+                                      isSecure: false, capitalization: .words, contentType: .name,
+                                      maxLength: 60)
+                            AuthField(icon: "envelope.fill", placeholder: "Email address", text: $email,
+                                      isSecure: false, keyboardType: .emailAddress,
+                                      capitalization: .never, contentType: .username,
+                                      errorText: Validators.isValidEmail(email) ? nil : "Enter a valid email address.")
+                            // Optional: guideline 5.1.1(ix) forbids demanding
+                            // personal data the app doesn't need to function.
+                            AuthField(icon: "phone.fill", placeholder: "Phone number (optional)", text: $phone,
+                                      isSecure: false, keyboardType: .phonePad,
+                                      capitalization: .never, contentType: .telephoneNumber,
+                                      maxLength: 20,
+                                      errorText: Validators.isValidPhone(phone) ? nil : "Use 7-15 digits, or leave this blank.")
+                            AuthField(icon: "lock.fill", placeholder: "Password (min \(Validators.minimumPasswordLength) chars)",
+                                      text: $password, isSecure: !showPassword,
+                                      showToggle: true, showPassword: $showPassword,
+                                      capitalization: .never, contentType: .newPassword,
+                                      errorText: Validators.isValidPassword(password) ? nil : "At least \(Validators.minimumPasswordLength) characters.")
+                            AuthField(icon: "lock.rotation", placeholder: "Confirm password",
+                                      text: $confirmPassword, isSecure: !showPassword,
+                                      capitalization: .never, contentType: .newPassword,
+                                      errorText: passwordsMatch ? nil : "Passwords don't match.")
 
                             if !errorMessage.isEmpty { AuthErrorBanner(message: errorMessage) }
                         }
@@ -345,21 +424,38 @@ struct SignUpView: View {
                                             .foregroundColor(.white)
                                     }
                                 }
-                                Group {
-                                    Text("I agree to the ").foregroundColor(Color.white.opacity(0.4))
-                                    + Text("Terms of Service").foregroundColor(Color(hex: "#A78BFA"))
-                                    + Text(" and ").foregroundColor(Color.white.opacity(0.4))
-                                    + Text("Privacy Policy").foregroundColor(Color(hex: "#A78BFA"))
-                                }
-                                .font(.caption)
+                                Text("I agree to the Terms of Service and Privacy Policy")
+                                    .font(.caption)
+                                    .foregroundColor(Color.white.opacity(0.4))
                                 Spacer()
                             }
                         }
                         .padding(.horizontal, 24)
                         .padding(.top, 16)
 
+                        // Separate from the checkbox: these used to be styled as
+                        // links inside the button, so tapping them just toggled
+                        // the box and the documents were unreachable.
+                        HStack(spacing: 16) {
+                            Link("Terms of Service", destination: LegalLinks.terms)
+                            Text("·").foregroundColor(Color.white.opacity(0.25))
+                            Link("Privacy Policy", destination: LegalLinks.privacy)
+                        }
+                        .font(.caption)
+                        .foregroundColor(Color(hex: "#A78BFA"))
+                        .padding(.top, 10)
+
                         AuthPrimaryButton(label: "Create Account", isLoading: isLoading, isEnabled: canSubmit, action: signUp)
                             .padding(.horizontal, 24).padding(.top, 20)
+
+                        if let blockingReason, !isLoading {
+                            Text(blockingReason)
+                                .font(.caption)
+                                .foregroundColor(Color.white.opacity(0.45))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 32)
+                                .padding(.top, 8)
+                        }
 
                         AuthSwitchRow(prompt: "Already have an account?", actionLabel: "Sign in", action: onGoToSignIn)
                             .padding(.top, 20).padding(.bottom, 40)
@@ -374,7 +470,12 @@ struct SignUpView: View {
         isLoading = true; errorMessage = ""
         Task {
             do {
-                _ = try await ServiceLocator.auth.signUp(name: fullName, email: email, password: password)
+                _ = try await ServiceLocator.auth.signUp(
+                    name: fullName.trimmingCharacters(in: .whitespaces),
+                    email: email,
+                    phone: phone.trimmingCharacters(in: .whitespaces),
+                    password: password
+                )
                 await MainActor.run {
                     isLoading = false
                     onSignedUp()
@@ -389,7 +490,35 @@ struct SignUpView: View {
     }
 }
 
+// MARK: - Legal
+
+enum LegalLinks {
+    // TODO: point these at the real hosted documents before submitting.
+    // App Review requires both to be reachable, and storing data about minors
+    // requires a published privacy policy.
+    static let terms   = URL(string: "https://habitkin.app/terms")!
+    static let privacy = URL(string: "https://habitkin.app/privacy")!
+}
+
 // MARK: - Reusable Auth Components
+
+struct AuthInfoBanner: View {
+    let message: String
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "envelope.badge.fill")
+                .font(.system(size: 13, weight: .semibold))
+            Text(message)
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+        }
+        .foregroundColor(Color(hex: "#A78BFA"))
+        .padding(12)
+        .background(Color(hex: "#7C3AED").opacity(0.12))
+        .cornerRadius(10)
+    }
+}
 
 struct AuthNavBar: View {
     let onBack: () -> Void
@@ -418,8 +547,23 @@ struct AuthField: View {
     var showToggle: Bool = false
     var showPassword: Binding<Bool> = .constant(false)
     var keyboardType: UIKeyboardType = .default
+    /// Explicit, because deriving it from `keyboardType` silently applied
+    /// `.words` to the password field — revealing the password then
+    /// capitalised it and the sign-in failed for no visible reason.
+    var capitalization: TextInputAutocapitalization = .never
+    var contentType: UITextContentType?
+    var maxLength: Int = 120
+    /// Shown under the field once the user has typed something invalid.
+    var errorText: String?
+
+    /// Only complain once they've actually typed something.
+    private var visibleError: String? {
+        guard let errorText, !text.isEmpty else { return nil }
+        return errorText
+    }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
@@ -429,15 +573,20 @@ struct AuthField: View {
             Group {
                 if isSecure {
                     SecureField(placeholder, text: $text)
+                        .textContentType(contentType)
                 } else {
                     TextField(placeholder, text: $text)
                         .keyboardType(keyboardType)
-                        .autocapitalization(keyboardType == .emailAddress ? .none : .words)
+                        .textInputAutocapitalization(capitalization)
+                        .textContentType(contentType)
                         .disableAutocorrection(true)
                 }
             }
             .font(.body)
             .foregroundColor(.white)
+            .onChange(of: text) { value in
+                if value.count > maxLength { text = String(value.prefix(maxLength)) }
+            }
 
             if showToggle {
                 Button(action: { showPassword.wrappedValue.toggle() }) {
@@ -451,56 +600,24 @@ struct AuthField: View {
         .background(Color.white.opacity(0.06))
         .cornerRadius(12)
         .overlay(RoundedRectangle(cornerRadius: 12)
-            .stroke(text.isEmpty ? Color.white.opacity(0.08) : Color(hex: "#7C3AED").opacity(0.5), lineWidth: 1))
-    }
-}
+            .stroke(strokeColor, lineWidth: 1))
 
-struct SocialButton: View {
-    let label: String
-    var icon: String?
-    var gradient: LinearGradient? = nil
-    let action: () -> Void
-    var isGoogle: Bool = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                if isGoogle {
-                    Text("G")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(LinearGradient(
-                            colors: [Color(hex: "#EA4335"), Color(hex: "#4285F4")],
-                            startPoint: .top, endPoint: .bottom
-                        ))
-                } else if let icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                Text(label)
-                    .font(.subheadline).fontWeight(.semibold).foregroundColor(.white)
+            if let visibleError {
+                Text(visibleError)
+                    .font(.caption2)
+                    .foregroundColor(Color(hex: "#EF4444"))
+                    .padding(.leading, 4)
             }
-            .frame(maxWidth: .infinity)
-            .padding(14)
-            .background(Color.white.opacity(isGoogle ? 0.06 : 0.08))
-            .cornerRadius(12)
-            .overlay(RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1))
         }
+    }
+
+    private var strokeColor: Color {
+        if visibleError != nil { return Color(hex: "#EF4444").opacity(0.6) }
+        return text.isEmpty ? Color.white.opacity(0.08) : Color(hex: "#7C3AED").opacity(0.5)
     }
 }
 
-struct AuthDivider: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            Rectangle().fill(Color.white.opacity(0.1)).frame(height: 1)
-            Text("or").font(.caption).foregroundColor(Color.white.opacity(0.3))
-            Rectangle().fill(Color.white.opacity(0.1)).frame(height: 1)
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 24)
-    }
-}
+
 
 struct AuthPrimaryButton: View {
     let label: String

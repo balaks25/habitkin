@@ -129,7 +129,8 @@ struct ProgressTabView: View {
                                 ForEach(1...4, id: \.self) { week in
                                     AnimatedWeekRow(
                                         week: week,
-                                        isCompleted: kid.currentWeek > week,
+                                        isCompleted: kid.hasCompletedWeek(week),
+                                        isSkipped: kid.wasWeekSkipped(week),
                                         isCurrent: kid.currentWeek == week,
                                         theme: theme,
                                         delay: Double(week) * 0.08
@@ -158,7 +159,7 @@ struct ProgressTabView: View {
                                     title: "Week Warrior",
                                     description: "Complete a full week",
                                     icon: "calendar.circle.fill",
-                                    unlocked: kid.currentWeek > 1,
+                                    unlocked: (1..<Kid.finalWeek).contains { kid.hasCompletedWeek($0) },
                                     theme: theme,
                                     delay: 0.07
                                 )
@@ -360,6 +361,9 @@ struct AnimatedEvolutionStage: View {
 struct AnimatedWeekRow: View {
     let week: Int
     let isCompleted: Bool
+    /// Advanced past because it offered no quests for this child — neither
+    /// completed nor locked, and saying "Done" for it would be a lie.
+    var isSkipped: Bool = false
     let isCurrent: Bool
     let theme: AppTheme
     let delay: Double
@@ -378,12 +382,14 @@ struct AnimatedWeekRow: View {
 
     var statusIcon: String {
         if isCompleted { return "checkmark.circle.fill" }
+        if isSkipped   { return "minus.circle.fill" }
         if isCurrent   { return "play.circle.fill" }
         return "lock.circle.fill"
     }
 
     var statusColor: Color {
         if isCompleted { return .green }
+        if isSkipped   { return Color.white.opacity(0.35) }
         if isCurrent   { return Color(hex: theme.primaryColor) }
         return Color.white.opacity(0.2)
     }
@@ -417,7 +423,7 @@ struct AnimatedWeekRow: View {
                 Image(systemName: statusIcon)
                     .font(.system(size: 14))
                     .foregroundColor(statusColor)
-                Text(isCompleted ? "Done" : (isCurrent ? "Active" : "Locked"))
+                Text(isCompleted ? "Done" : (isSkipped ? "No quests" : (isCurrent ? "Active" : "Locked")))
                     .font(.caption).fontWeight(.semibold)
                     .foregroundColor(statusColor)
             }

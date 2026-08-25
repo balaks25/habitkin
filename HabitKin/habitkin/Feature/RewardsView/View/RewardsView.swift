@@ -9,16 +9,18 @@
 import SwiftUI
 
 struct RewardsView: View {
-    @State private var kid: Kid
-    let onUpdate: (Kid) -> Void
+    let kid: Kid
+
+    @ObservedObject private var catalog = CatalogManager.shared
+    @ObservedObject private var manager = KidsManager.shared
 
     @State private var selectedCategory = "all"
     @State private var showCelebration = false
     @State private var celebrationMessage = ""
+    @State private var actionNotice: String?
 
-    init(kid: Kid, onUpdate: @escaping (Kid) -> Void) {
-        _kid = State(initialValue: kid)
-        self.onUpdate = onUpdate
+    init(kid: Kid) {
+        self.kid = kid
     }
 
     var theme: AppTheme {
@@ -26,17 +28,19 @@ struct RewardsView: View {
     }
     
     var filteredRewards: [Reward] {
-        if selectedCategory == "all" {
-            return Reward.rewardLibrary
-        }
-        return Reward.rewardsByCategory(selectedCategory)
+        let rewards = catalog.availableRewards(for: kid)
+        guard selectedCategory != "all" else { return rewards }
+        return rewards.filter { $0.category == selectedCategory }
     }
     
+    // "Special" was missing here, which left the 600-coin Ultimate Prize
+    // reachable only through the "All" tab.
     let categories = [
         ("all", "All Rewards", "gift.fill"),
         ("screen_time", "Screen Time", "iphone"),
         ("treat", "Treats", "fork.knife"),
         ("activity", "Activities", "star.fill"),
+        ("special", "Special", "crown.fill"),
     ]
     
     var body: some View {
@@ -158,7 +162,7 @@ struct RewardsView: View {
                                 .padding(.horizontal, 20)
                                 
                                 VStack(spacing: 8) {
-                                    ForEach(Reward.rewardLibrary.filter { kid.claimedRewardIds.contains($0.id) }) { reward in
+                                    ForEach(catalog.allRewards(for: kid).filter { kid.claimedRewardIds.contains($0.id) }) { reward in
                                         HStack {
                                             Image(systemName: reward.icon)
                                                 .font(.system(size: 20, weight: .semibold))
@@ -194,6 +198,20 @@ struct RewardsView: View {
                 }
             }
             
+            if let actionNotice {
+                VStack {
+                    Spacer()
+                    Text(actionNotice)
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 18).padding(.vertical, 12)
+                        .background(Color.black.opacity(0.75))
+                        .cornerRadius(12)
+                        .padding(.bottom, 110)
+                }
+                .transition(.opacity)
+            }
+
             // Celebration Animation
             if showCelebration {
                 CelebrationView(message: celebrationMessage, theme: theme)
@@ -203,11 +221,17 @@ struct RewardsView: View {
     }
     
     private func claimReward(_ reward: Reward) {
-        guard kid.totalCoins >= reward.coinsCost, !kid.claimedRewardIds.contains(reward.id) else { return }
-
-        kid.totalCoins -= reward.coinsCost
-        kid.claimedRewardIds.insert(reward.id)
-        onUpdate(kid)
+        guard manager.claimReward(reward, for: kid) else {
+            let reason = kid.claimedRewardIds.contains(reward.id)
+                ? "You've already claimed \(reward.name)."
+                : "You need \(reward.coinsCost - kid.totalCoins) more coins."
+            withAnimation(.easeInOut(duration: 0.2)) { actionNotice = reason }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                withAnimation(.easeOut(duration: 0.25)) { actionNotice = nil }
+            }
+            return
+        }
+        Feedback.rewardClaimed()
 
         celebrationMessage = "\(reward.name)\nClaimed!"
         showCelebration = true

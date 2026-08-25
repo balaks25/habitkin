@@ -12,31 +12,136 @@ import Combine
 // Shared state to track if parent is currently unlocked
 class ParentSession: ObservableObject {
     static let shared = ParentSession()
-    
+
     @Published var isUnlocked = false
-    @AppStorage("parentPIN") var savedPIN: String = ""
-    @AppStorage("isPINSet") var isPINSet: Bool = false
-    
+    @Published private(set) var isPINSet: Bool
+
+    /// Wrong attempts before the pad is refused for a while, so a child can't
+    /// simply try all 10,000 combinations.
+    static let maxAttempts = 5
+    private static let lockoutSeconds: TimeInterval = 300
+
+    @Published private(set) var failedAttempts = 0
+    @Published private(set) var lockedOutUntil: Date?
+
+    /// The PIN lives in the Keychain, not UserDefaults — a 4-digit parental
+    /// control in an unencrypted backup isn't a control.
+    private var savedPIN: String? {
+        KeychainStore.get(KeychainStore.Key.parentPIN)
+    }
+
+    private var autoLockTask: DispatchWorkItem?
+
+    private init() {
+        isPINSet = KeychainStore.get(KeychainStore.Key.parentPIN) != nil
+    }
+
+    var isLockedOut: Bool {
+        guard let until = lockedOutUntil else { return false }
+        return until > Date()
+    }
+
+    var lockoutRemaining: Int {
+        guard let until = lockedOutUntil else { return 0 }
+        return max(0, Int(until.timeIntervalSinceNow.rounded(.up)))
+    }
+
+    /// Drives the lockout countdown. Published so the gate re-renders each tick
+    /// instead of freezing on the first value it read.
+    @Published private(set) var tick = 0
+
+    private var countdownTimer: Timer?
+
+    private func startCountdown() {
+        countdownTimer?.invalidate()
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            self.tick += 1
+            if !self.isLockedOut {
+                timer.invalidate()
+                self.countdownTimer = nil
+                self.lockedOutUntil = nil
+            }
+        }
+        countdownTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
     func lock() {
+        autoLockTask?.cancel()
+        autoLockTask = nil
         isUnlocked = false
     }
-    
+
     func unlock() {
         isUnlocked = true
-        // Auto-lock after 5 minutes of inactivity
-        DispatchQueue.main.asyncAfter(deadline: .now() + 300) {
-            self.isUnlocked = false
-        }
+        failedAttempts = 0
+        lockedOutUntil = nil
+        scheduleAutoLock()
     }
-    
+
+    /// Restarts the idle timer. Called whenever the parent does something, so
+    /// an active parent isn't logged out mid-edit.
+    func extendSession() {
+        guard isUnlocked else { return }
+        scheduleAutoLock()
+    }
+
     func verify(_ pin: String) -> Bool {
-        return pin == savedPIN
+        guard !isLockedOut else { return false }
+        guard let savedPIN, pin == savedPIN else {
+            failedAttempts += 1
+            if failedAttempts >= Self.maxAttempts {
+                lockedOutUntil = Date().addingTimeInterval(Self.lockoutSeconds)
+                failedAttempts = 0
+                startCountdown()
+            }
+            return false
+        }
+        return true
     }
-    
-    func setPIN(_ pin: String) {
-        savedPIN = pin
+
+    /// Returns false if the Keychain write failed. Assuming success here left
+    /// `isPINSet == true` with no stored PIN, so every later attempt failed and
+    /// the parent was locked out of a PIN they had just chosen.
+    @discardableResult
+    func setPIN(_ pin: String) -> Bool {
+        guard KeychainStore.set(pin, for: KeychainStore.Key.parentPIN),
+              KeychainStore.get(KeychainStore.Key.parentPIN) == pin else {
+            isPINSet = KeychainStore.get(KeychainStore.Key.parentPIN) != nil
+            return false
+        }
         isPINSet = true
-        isUnlocked = true
+        unlock()
+        return true
+    }
+
+    /// Clears the PIN so a new one can be set. Gated on re-entering the account
+    /// password — see `ParentReauthSheet`.
+    func clearPINForReset() {
+        KeychainStore.remove(KeychainStore.Key.parentPIN)
+        isPINSet = false
+        failedAttempts = 0
+        lockedOutUntil = nil
+    }
+
+    /// Clears the PIN along with the session — used on sign-out and account
+    /// deletion so the next parent on this device isn't gated by an old PIN.
+    func reset() {
+        KeychainStore.remove(KeychainStore.Key.parentPIN)
+        isPINSet = false
+        failedAttempts = 0
+        lockedOutUntil = nil
+        lock()
+    }
+
+    private func scheduleAutoLock() {
+        autoLockTask?.cancel()
+        let task = DispatchWorkItem { [weak self] in
+            self?.isUnlocked = false
+        }
+        autoLockTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.lockoutSeconds, execute: task)
     }
 }
 
@@ -50,6 +155,7 @@ struct ParentGateView: View {
     @State private var shakeError = false
     @State private var errorMessage = ""
     @State private var showSetPIN = false
+    @State private var showReauth = false
     @StateObject private var session = ParentSession.shared
     
     var body: some View {
@@ -74,6 +180,7 @@ struct ParentGateView: View {
                     }
                     Spacer()
                 }
+                .padding(.top, 16)
                 .padding(.horizontal, 24)
                 
                 Spacer()
@@ -114,7 +221,13 @@ struct ParentGateView: View {
                     .offset(x: shakeError ? -10 : 0)
                     .animation(shakeError ? .default.repeatCount(3, autoreverses: true).speed(5) : .default, value: shakeError)
                     
-                    if !errorMessage.isEmpty {
+                    // Lockout wins over the transient "wrong PIN" text, and
+                    // stays on screen for as long as the lockout lasts.
+                    if session.isLockedOut {
+                        Text("Too many attempts. Try again in \(session.lockoutRemaining)s.")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    } else if !errorMessage.isEmpty {
                         Text(errorMessage)
                             .font(.caption)
                             .foregroundColor(.red)
@@ -124,13 +237,20 @@ struct ParentGateView: View {
                     PINPad(
                         enteredPIN: $enteredPIN,
                         theme: theme,
+                        isDisabled: session.isLockedOut,
                         onComplete: { pin in
                             verifyPIN(pin)
                         }
                     )
+
+                    Button("Forgot PIN?") { showReauth = true }
+                        .font(.caption)
+                        .foregroundColor(Color(hex: theme.primaryColor))
                 } else {
-                    // No PIN set yet - show setup button
-                    Button(action: { showSetPIN = true }) {
+                    // First-time setup needs the account password. Without this
+                    // gate any child could invent their own PIN and walk into
+                    // the destructive actions behind it.
+                    Button(action: { showReauth = true }) {
                         HStack(spacing: 8) {
                             Image(systemName: "key.fill")
                             Text("Set Up Parent PIN")
@@ -143,6 +263,10 @@ struct ParentGateView: View {
                         .cornerRadius(12)
                     }
                     .padding(.horizontal, 40)
+
+                    Text("You'll confirm your account password first.")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
                 }
                 
                 Spacer()
@@ -154,14 +278,24 @@ struct ParentGateView: View {
                 onSuccess()
             })
         }
+        .sheet(isPresented: $showReauth) {
+            ParentReauthSheet(theme: theme) {
+                session.clearPINForReset()
+                showReauth = false
+                showSetPIN = true
+            }
+        }
     }
     
     private func verifyPIN(_ pin: String) {
+        guard !session.isLockedOut else { enteredPIN = ""; return }
         if session.verify(pin) {
             session.unlock()
             onSuccess()
         } else {
-            errorMessage = "Incorrect PIN. Try again."
+            errorMessage = session.isLockedOut
+                ? "Too many attempts. Try again in \(session.lockoutRemaining)s."
+                : "Incorrect PIN. Try again."
             shakeError = true
             enteredPIN = ""
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -176,6 +310,7 @@ struct ParentGateView: View {
 struct PINPad: View {
     @Binding var enteredPIN: String
     let theme: AppTheme
+    var isDisabled: Bool = false
     let onComplete: (String) -> Void
     
     let rows = [
@@ -216,10 +351,12 @@ struct PINPad: View {
                 }
             }
         }
+        .opacity(isDisabled ? 0.35 : 1)
+        .allowsHitTesting(!isDisabled)
     }
     
     private func tapKey(_ key: String) {
-        guard enteredPIN.count < 4 else { return }
+        guard !isDisabled, enteredPIN.count < 4 else { return }
         enteredPIN += key
         if enteredPIN.count == 4 {
             onComplete(enteredPIN)
@@ -227,7 +364,7 @@ struct PINPad: View {
     }
     
     private func deleteLast() {
-        guard !enteredPIN.isEmpty else { return }
+        guard !isDisabled, !enteredPIN.isEmpty else { return }
         enteredPIN.removeLast()
     }
 }
@@ -274,6 +411,7 @@ struct SetPINView: View {
                     }
                     Spacer()
                 }
+                .padding(.top, 16)
                 .padding(.horizontal, 24)
                 
                 Spacer()
@@ -332,7 +470,13 @@ struct SetPINView: View {
             step = .confirm
         } else {
             if confirmPIN == firstPIN {
-                session.setPIN(confirmPIN)
+                guard session.setPIN(confirmPIN) else {
+                    errorMessage = "Couldn't save your PIN securely. Please try again."
+                    confirmPIN = ""
+                    firstPIN = ""
+                    step = .enter
+                    return
+                }
                 onComplete()
             } else {
                 errorMessage = "PINs don't match. Try again."

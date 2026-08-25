@@ -61,11 +61,11 @@ struct MainTabView: View {
 
                 // ── Tab content ───────────────────────────────────
                 TabView(selection: $selectedTab) {
-                    HomeView(kid: kid, onUpdate: manager.updateKid)
+                    HomeView(kid: kid)
                         .tag(0)
                         .id(kid.id)
                     ProgressTabView(kid: kid).tag(1)
-                    RewardsView(kid: kid, onUpdate: manager.updateKid)
+                    RewardsView(kid: kid)
                         .tag(2)
                         .id(kid.id)
                     SettingsView(kid: kid).tag(3)
